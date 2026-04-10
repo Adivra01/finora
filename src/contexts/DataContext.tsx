@@ -52,13 +52,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
     setLoading(true);
 
-    const [txRes, payRes, pmtRes, invRes, catRes, itRes] = await Promise.all([
+    const [txRes, payRes, pmtRes, invRes, catRes] = await Promise.all([
       supabase.from('transactions').select('*').order('created_at', { ascending: false }),
       supabase.from('payables').select('*').order('created_at', { ascending: false }),
       supabase.from('payments').select('*').order('created_at', { ascending: false }),
       supabase.from('investments').select('*').order('created_at', { ascending: false }),
       supabase.from('categories').select('*'),
-      supabase.from('investment_types').select('*'),
     ]);
 
     // Map transactions
@@ -96,14 +95,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       setCategories((catRes.data || []).map((c: any) => ({ id: c.id, name: c.name, group: c.group })));
     }
 
-    // If no investment types exist, seed defaults
-    if ((itRes.data || []).length === 0) {
-      const itInserts = DEFAULT_INVESTMENT_TYPES.map(name => ({ user_id: userId, name }));
-      const { data: insertedTypes } = await supabase.from('investment_types').insert(itInserts).select();
-      setInvestmentTypes((insertedTypes || []).map((t: any) => t.name));
-    } else {
-      setInvestmentTypes((itRes.data || []).map((t: any) => t.name));
-    }
+    // Investment types are managed locally
+    setInvestmentTypes(DEFAULT_INVESTMENT_TYPES);
 
     setLoading(false);
   }, [userId]);
@@ -305,15 +298,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setCategories(prev => prev.filter(c => c.id !== id));
   }, []);
 
-  // --- Investment Types ---
+  // --- Investment Types (local only) ---
   const addInvestmentType = useCallback(async (typeName: string) => {
-    if (!userId) return;
-    await supabase.from('investment_types').insert({ user_id: userId, name: typeName });
     setInvestmentTypes(prev => [...prev, typeName]);
-  }, [userId]);
+  }, []);
 
   const deleteInvestmentType = useCallback(async (typeName: string) => {
-    await supabase.from('investment_types').delete().eq('name', typeName);
     setInvestmentTypes(prev => prev.filter(t => t !== typeName));
   }, []);
 
