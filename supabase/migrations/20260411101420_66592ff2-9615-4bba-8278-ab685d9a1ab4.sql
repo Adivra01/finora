@@ -1,0 +1,32 @@
+
+CREATE TABLE public.fiscal_data (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL,
+  year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM now()),
+  ca_jan NUMERIC NOT NULL DEFAULT 0,
+  ca_fev NUMERIC NOT NULL DEFAULT 0,
+  ca_mar NUMERIC NOT NULL DEFAULT 0,
+  ca_avr NUMERIC NOT NULL DEFAULT 0,
+  ca_mai NUMERIC NOT NULL DEFAULT 0,
+  ca_juin NUMERIC NOT NULL DEFAULT 0,
+  ca_juil NUMERIC NOT NULL DEFAULT 0,
+  ca_aout NUMERIC NOT NULL DEFAULT 0,
+  ca_sept NUMERIC NOT NULL DEFAULT 0,
+  ca_oct NUMERIC NOT NULL DEFAULT 0,
+  ca_nov NUMERIC NOT NULL DEFAULT 0,
+  ca_dec NUMERIC NOT NULL DEFAULT 0,
+  paiement_t1 NUMERIC NOT NULL DEFAULT 0,
+  paiement_t2 NUMERIC NOT NULL DEFAULT 0,
+  paiement_t3 NUMERIC NOT NULL DEFAULT 0,
+  paiement_t4 NUMERIC NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  UNIQUE(user_id, year)
+);
+
+ALTER TABLE public.fiscal_data ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own fiscal data"
+  ON public.fiscal_data FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
