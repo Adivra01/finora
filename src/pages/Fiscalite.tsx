@@ -78,10 +78,10 @@ export default function Fiscalite() {
   const saveField = useCallback(async (key: string, value: number) => {
     if (!userId) return;
     setSaving(true);
-    const updates = { [key]: value, updated_at: new Date().toISOString() };
+    const updates: any = { [key]: value, updated_at: new Date().toISOString() };
 
     if (recordId) {
-      await supabase.from('fiscal_data').update(updates).eq('id', recordId);
+      await supabase.from('fiscal_data').update(updates as any).eq('id', recordId);
     } else {
       const insert: any = { user_id: userId, year, [key]: value };
       const { data: row } = await supabase.from('fiscal_data').insert(insert).select().single();
