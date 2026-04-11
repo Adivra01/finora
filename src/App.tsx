@@ -14,6 +14,7 @@ import NotFound from "./pages/NotFound";
 import Payables from "./pages/Payables";
 import PlannedExpenses from "./pages/PlannedExpenses";
 import Transactions from "./pages/Transactions";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ function AppRoutes() {
         <Route path="investissements" element={<Investments />} />
         <Route path="categories" element={<Categories />} />
         <Route path="depenses-prevues" element={<PlannedExpenses />} />
+        <Route path="parametres" element={<Settings />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>
