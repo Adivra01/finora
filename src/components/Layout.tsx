@@ -20,6 +20,7 @@ const navItems = [
   { to: '/depenses-prevues', label: 'Dépenses prévues', icon: ClipboardList },
   { to: '/investissements', label: 'Investissements', icon: TrendingUp },
   { to: '/categories', label: 'Catégories', icon: Settings },
+  { to: '/parametres', label: 'Paramètres', icon: Settings },
 ];
 
 export function Layout() {
