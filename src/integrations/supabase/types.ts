@@ -38,6 +38,78 @@ export type Database = {
         }
         Relationships: []
       }
+      fiscal_data: {
+        Row: {
+          ca_aout: number
+          ca_avr: number
+          ca_dec: number
+          ca_fev: number
+          ca_jan: number
+          ca_juil: number
+          ca_juin: number
+          ca_mai: number
+          ca_mar: number
+          ca_nov: number
+          ca_oct: number
+          ca_sept: number
+          created_at: string
+          id: string
+          paiement_t1: number
+          paiement_t2: number
+          paiement_t3: number
+          paiement_t4: number
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          ca_aout?: number
+          ca_avr?: number
+          ca_dec?: number
+          ca_fev?: number
+          ca_jan?: number
+          ca_juil?: number
+          ca_juin?: number
+          ca_mai?: number
+          ca_mar?: number
+          ca_nov?: number
+          ca_oct?: number
+          ca_sept?: number
+          created_at?: string
+          id?: string
+          paiement_t1?: number
+          paiement_t2?: number
+          paiement_t3?: number
+          paiement_t4?: number
+          updated_at?: string
+          user_id: string
+          year?: number
+        }
+        Update: {
+          ca_aout?: number
+          ca_avr?: number
+          ca_dec?: number
+          ca_fev?: number
+          ca_jan?: number
+          ca_juil?: number
+          ca_juin?: number
+          ca_mai?: number
+          ca_mar?: number
+          ca_nov?: number
+          ca_oct?: number
+          ca_sept?: number
+          created_at?: string
+          id?: string
+          paiement_t1?: number
+          paiement_t2?: number
+          paiement_t3?: number
+          paiement_t4?: number
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
       investments: {
         Row: {
           amount: number
