@@ -1,34 +1,43 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, TrendingUp, Calculator, Landmark, ShieldAlert } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import {
+  AlertTriangle, TrendingUp, Calculator, Landmark, ShieldAlert,
+  FileDown, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
+  BarChart3, Wallet, Receipt
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const MONTHS = [
-  { key: 'ca_jan', label: 'Janvier' },
-  { key: 'ca_fev', label: 'Février' },
-  { key: 'ca_mar', label: 'Mars' },
-  { key: 'ca_avr', label: 'Avril' },
-  { key: 'ca_mai', label: 'Mai' },
-  { key: 'ca_juin', label: 'Juin' },
-  { key: 'ca_juil', label: 'Juillet' },
-  { key: 'ca_aout', label: 'Août' },
-  { key: 'ca_sept', label: 'Septembre' },
-  { key: 'ca_oct', label: 'Octobre' },
-  { key: 'ca_nov', label: 'Novembre' },
-  { key: 'ca_dec', label: 'Décembre' },
+  { key: 'ca_jan', label: 'Jan', full: 'Janvier' },
+  { key: 'ca_fev', label: 'Fév', full: 'Février' },
+  { key: 'ca_mar', label: 'Mar', full: 'Mars' },
+  { key: 'ca_avr', label: 'Avr', full: 'Avril' },
+  { key: 'ca_mai', label: 'Mai', full: 'Mai' },
+  { key: 'ca_juin', label: 'Juin', full: 'Juin' },
+  { key: 'ca_juil', label: 'Juil', full: 'Juillet' },
+  { key: 'ca_aout', label: 'Aoû', full: 'Août' },
+  { key: 'ca_sept', label: 'Sep', full: 'Septembre' },
+  { key: 'ca_oct', label: 'Oct', full: 'Octobre' },
+  { key: 'ca_nov', label: 'Nov', full: 'Novembre' },
+  { key: 'ca_dec', label: 'Déc', full: 'Décembre' },
 ] as const;
 
 const QUARTERS = [
-  { label: 'T1', months: ['ca_jan', 'ca_fev', 'ca_mar'], payKey: 'paiement_t1' },
-  { label: 'T2', months: ['ca_avr', 'ca_mai', 'ca_juin'], payKey: 'paiement_t2' },
-  { label: 'T3', months: ['ca_juil', 'ca_aout', 'ca_sept'], payKey: 'paiement_t3' },
-  { label: 'T4', months: ['ca_oct', 'ca_nov', 'ca_dec'], payKey: 'paiement_t4' },
+  { label: 'T1', period: 'Janvier – Mars', months: ['ca_jan', 'ca_fev', 'ca_mar'], payKey: 'paiement_t1', color: 'from-blue-500/10 to-blue-600/5 border-blue-500/20' },
+  { label: 'T2', period: 'Avril – Juin', months: ['ca_avr', 'ca_mai', 'ca_juin'], payKey: 'paiement_t2', color: 'from-emerald-500/10 to-emerald-600/5 border-emerald-500/20' },
+  { label: 'T3', period: 'Juillet – Septembre', months: ['ca_juil', 'ca_aout', 'ca_sept'], payKey: 'paiement_t3', color: 'from-amber-500/10 to-amber-600/5 border-amber-500/20' },
+  { label: 'T4', period: 'Octobre – Décembre', months: ['ca_oct', 'ca_nov', 'ca_dec'], payKey: 'paiement_t4', color: 'from-purple-500/10 to-purple-600/5 border-purple-500/20' },
 ] as const;
+
+const YEARS = Array.from({ length: 15 }, (_, i) => 2026 + i); // 2026 to 2040
 
 const TAUX = 0.06;
 const SEUIL_TVA = 30_000_000;
@@ -38,11 +47,16 @@ type FiscalRecord = Record<string, number>;
 const fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
 
+const fmtShort = (n: number) => {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toString();
+};
+
 export default function Fiscalite() {
   const { userId } = useAuth();
   const { toast } = useToast();
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(currentYear);
+  const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState<FiscalRecord>({});
   const [recordId, setRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,7 +102,7 @@ export default function Fiscalite() {
       if (row) setRecordId(row.id);
     }
     setSaving(false);
-    toast({ title: 'Enregistré', description: `${key} mis à jour` });
+    toast({ title: '✓ Enregistré', description: `Donnée mise à jour` });
   }, [userId, recordId, year, toast]);
 
   const handleChange = (key: string, raw: string) => {
@@ -105,48 +119,164 @@ export default function Fiscalite() {
   const impotAnnuel = caAnnuel * TAUX;
   const totalPaye = quarterPaid.reduce((a, b) => a + b, 0);
   const solde = impotAnnuel - totalPaye;
+  const progressPaiement = impotAnnuel > 0 ? Math.min(100, (totalPaye / impotAnnuel) * 100) : 0;
 
   const monthsFilled = MONTHS.filter(m => (data[m.key] || 0) > 0).length;
   const moyenne = monthsFilled > 0 ? caAnnuel / monthsFilled : 0;
   const caProjecte = moyenne * 12;
   const impotProjecte = caProjecte * TAUX;
 
+  // Max month CA for chart
+  const maxMonthCA = Math.max(...MONTHS.map(m => data[m.key] || 0), 1);
+
   // ---- Alertes ----
   const alerts: { type: 'destructive' | 'default'; title: string; msg: string }[] = [];
   if (caAnnuel >= SEUIL_TVA) {
-    alerts.push({ type: 'destructive', title: 'Risque TVA (18%)', msg: `Votre CA annuel (${fmt(caAnnuel)}) dépasse le seuil de ${fmt(SEUIL_TVA)}. Vous pourriez être assujetti à la TVA à 18%.` });
+    alerts.push({ type: 'destructive', title: 'Risque TVA (18%)', msg: `Votre CA annuel (${fmt(caAnnuel)}) dépasse le seuil de ${fmt(SEUIL_TVA)}.` });
   }
   QUARTERS.forEach((q, i) => {
     if (i > 0 && quarterCA[i - 1] > 0 && quarterCA[i] > quarterCA[i - 1] * 1.5) {
-      alerts.push({ type: 'default', title: `Forte croissance ${q.label}`, msg: `Le CA ${q.label} a augmenté de plus de 50% par rapport au trimestre précédent. À vérifier.` });
+      alerts.push({ type: 'default', title: `Forte croissance ${q.label}`, msg: `Le CA ${q.label} a augmenté de +50% vs trimestre précédent.` });
     }
     if (quarterImpot[i] > 0 && quarterPaid[i] < quarterImpot[i]) {
-      alerts.push({ type: 'default', title: `Impôt ${q.label} non couvert`, msg: `Impôt dû: ${fmt(quarterImpot[i])} — Payé: ${fmt(quarterPaid[i])}.` });
+      alerts.push({ type: 'default', title: `Impôt ${q.label} non soldé`, msg: `Dû: ${fmt(quarterImpot[i])} — Payé: ${fmt(quarterPaid[i])}` });
     }
   });
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-muted-foreground">Chargement...</div>;
+  // ---- Export PDF ----
+  const exportPDF = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Fiscalité ${year} — FinTrack</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a2e; padding: 40px; background: #fff; }
+  .header { text-align: center; margin-bottom: 32px; border-bottom: 3px solid #3b82f6; padding-bottom: 20px; }
+  .header h1 { font-size: 28px; color: #1a1a2e; margin-bottom: 4px; }
+  .header p { color: #64748b; font-size: 14px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
+  .summary-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .summary-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+  .summary-card .value.danger { color: #ef4444; }
+  .summary-card .value.success { color: #22c55e; }
+  .section { margin-bottom: 28px; }
+  .section h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1e293b; border-left: 4px solid #3b82f6; padding-left: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f1f5f9; text-align: left; padding: 10px 12px; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+  tr:nth-child(even) { background: #fafbfc; }
+  .text-right { text-align: right; }
+  .bold { font-weight: 700; }
+  .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+  .alert { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; color: #991b1b; }
+  .alert.warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+  @media print { body { padding: 20px; } }
+</style></head><body>
+<div class="header">
+  <h1>📊 Récapitulatif Fiscal ${year}</h1>
+  <p>Régime Simplifié — Bamako — Taux 6% | Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
+</div>
+
+<div class="summary-grid">
+  <div class="summary-card"><div class="label">CA Annuel</div><div class="value">${fmt(caAnnuel)}</div></div>
+  <div class="summary-card"><div class="label">Impôt Annuel</div><div class="value">${fmt(impotAnnuel)}</div></div>
+  <div class="summary-card"><div class="label">Total Payé</div><div class="value success">${fmt(totalPaye)}</div></div>
+  <div class="summary-card"><div class="label">Solde Restant</div><div class="value ${solde > 0 ? 'danger' : 'success'}">${fmt(solde)}</div></div>
+</div>
+
+${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(a => `<div class="alert ${a.type === 'default' ? 'warning' : ''}">${a.title}: ${a.msg}</div>`).join('')}</div>` : ''}
+
+<div class="section">
+  <h2>Chiffre d'affaires mensuel</h2>
+  <table>
+    <tr><th>Mois</th><th class="text-right">CA</th><th class="text-right">Impôt (6%)</th></tr>
+    ${MONTHS.map(m => `<tr><td>${m.full}</td><td class="text-right">${fmt(data[m.key] || 0)}</td><td class="text-right">${fmt((data[m.key] || 0) * TAUX)}</td></tr>`).join('')}
+    <tr class="bold" style="background:#e8f0fe"><td>Total</td><td class="text-right">${fmt(caAnnuel)}</td><td class="text-right">${fmt(impotAnnuel)}</td></tr>
+  </table>
+</div>
+
+<div class="section">
+  <h2>Détail trimestriel</h2>
+  <table>
+    <tr><th>Trimestre</th><th class="text-right">CA</th><th class="text-right">Impôt dû</th><th class="text-right">Payé</th><th class="text-right">Reste</th></tr>
+    ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="text-right">${fmt(quarterCA[i])}</td><td class="text-right">${fmt(quarterImpot[i])}</td><td class="text-right">${fmt(quarterPaid[i])}</td><td class="text-right bold ${quarterImpot[i] - quarterPaid[i] > 0 ? 'style="color:#ef4444"' : ''}">${fmt(Math.max(0, quarterImpot[i] - quarterPaid[i]))}</td></tr>`).join('')}
+  </table>
+</div>
+
+<div class="section">
+  <h2>Projections</h2>
+  <table>
+    <tr><td>Moyenne mensuelle (${monthsFilled} mois)</td><td class="text-right bold">${fmt(moyenne)}</td></tr>
+    <tr><td>CA projeté (12 mois)</td><td class="text-right bold">${fmt(caProjecte)}</td></tr>
+    <tr><td>Impôt projeté</td><td class="text-right bold">${fmt(impotProjecte)}</td></tr>
+  </table>
+</div>
+
+<div class="footer">FinTrack — Document généré automatiquement. Ne constitue pas un document fiscal officiel.</div>
+</body></html>`;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.print();
+    };
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+    </div>
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Fiscalité</h1>
-          <p className="text-sm text-muted-foreground">Régime simplifié — Bamako — Taux 6%</p>
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10">
+              <Receipt className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Fiscalité</h1>
+              <p className="text-sm text-muted-foreground">Régime simplifié — Bamako — Taux 6%</p>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Année :</span>
-          <select
-            value={year}
-            onChange={e => setYear(Number(e.target.value))}
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-          >
-            {[currentYear - 1, currentYear, currentYear + 1].map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-          {saving && <Badge variant="secondary" className="animate-pulse">Enregistrement...</Badge>}
+        <div className="flex items-center gap-3">
+          {saving && <Badge variant="secondary" className="animate-pulse">Sauvegarde...</Badge>}
+          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
+            <Button
+              variant="ghost" size="icon" className="h-8 w-8"
+              onClick={() => setYear(y => Math.max(2026, y - 1))}
+              disabled={year <= 2026}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <select
+              value={year}
+              onChange={e => setYear(Number(e.target.value))}
+              className="rounded-md bg-transparent px-3 py-1.5 text-sm font-semibold text-foreground border-0 focus:outline-none cursor-pointer"
+            >
+              {YEARS.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <Button
+              variant="ghost" size="icon" className="h-8 w-8"
+              onClick={() => setYear(y => Math.min(2040, y + 1))}
+              disabled={year >= 2040}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <Button onClick={exportPDF} variant="outline" size="sm" className="gap-2">
+            <FileDown className="w-4 h-4" />
+            Export PDF
+          </Button>
         </div>
       </div>
 
@@ -154,45 +284,123 @@ export default function Fiscalite() {
       {alerts.length > 0 && (
         <div className="space-y-2">
           {alerts.map((a, i) => (
-            <Alert key={i} variant={a.type}>
+            <Alert key={i} variant={a.type} className="border-l-4">
               {a.type === 'destructive' ? <ShieldAlert className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-              <AlertTitle>{a.title}</AlertTitle>
-              <AlertDescription>{a.msg}</AlertDescription>
+              <AlertTitle className="font-semibold">{a.title}</AlertTitle>
+              <AlertDescription className="text-sm">{a.msg}</AlertDescription>
             </Alert>
           ))}
         </div>
       )}
 
-      {/* Résumé annuel */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'CA Annuel', value: caAnnuel, icon: TrendingUp },
-          { label: 'Impôt Annuel (6%)', value: impotAnnuel, icon: Calculator },
-          { label: 'Total Payé', value: totalPaye, icon: Landmark },
-          { label: 'Solde Restant', value: solde, icon: ShieldAlert },
-        ].map(item => (
-          <Card key={item.label}>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
-                <item.icon className="w-3.5 h-3.5" />
-                {item.label}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
+          <CardContent className="p-5 relative">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 rounded-lg bg-blue-500/10">
+                <TrendingUp className="w-4 h-4 text-blue-600" />
               </div>
-              <p className={`text-lg font-bold ${item.label === 'Solde Restant' && item.value > 0 ? 'text-destructive' : 'text-foreground'}`}>
-                {fmt(item.value)}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CA Annuel</span>
+            </div>
+            <p className="text-2xl font-bold text-foreground">{fmtShort(caAnnuel)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{fmt(caAnnuel)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
+          <CardContent className="p-5 relative">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 rounded-lg bg-amber-500/10">
+                <Calculator className="w-4 h-4 text-amber-600" />
+              </div>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Impôt (6%)</span>
+            </div>
+            <p className="text-2xl font-bold text-foreground">{fmtShort(impotAnnuel)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{fmt(impotAnnuel)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
+          <CardContent className="p-5 relative">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10">
+                <Wallet className="w-4 h-4 text-emerald-600" />
+              </div>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Payé</span>
+            </div>
+            <p className="text-2xl font-bold text-foreground">{fmtShort(totalPaye)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{fmt(totalPaye)}</p>
+          </CardContent>
+        </Card>
+
+        <Card className="relative overflow-hidden">
+          <div className={`absolute inset-0 bg-gradient-to-br ${solde > 0 ? 'from-red-500/5' : 'from-emerald-500/5'} to-transparent`} />
+          <CardContent className="p-5 relative">
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`p-1.5 rounded-lg ${solde > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
+                {solde > 0 ? <XCircle className="w-4 h-4 text-red-600" /> : <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+              </div>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Solde</span>
+            </div>
+            <p className={`text-2xl font-bold ${solde > 0 ? 'text-destructive' : 'text-emerald-600'}`}>{fmtShort(solde)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{fmt(solde)}</p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* CA mensuel */}
+      {/* Progression globale */}
       <Card>
-        <CardHeader><CardTitle className="text-base">Chiffre d'affaires mensuel</CardTitle></CardHeader>
+        <CardContent className="p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-foreground">Progression des paiements</span>
+            <span className="text-sm font-bold text-foreground">{progressPaiement.toFixed(0)}%</span>
+          </div>
+          <Progress value={progressPaiement} className="h-3" />
+          <div className="flex justify-between mt-2">
+            <span className="text-xs text-muted-foreground">Payé: {fmt(totalPaye)}</span>
+            <span className="text-xs text-muted-foreground">Total dû: {fmt(impotAnnuel)}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Mini chart CA mensuel */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-primary" />
+            Chiffre d'affaires mensuel
+          </CardTitle>
+        </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {/* Visual bars */}
+          <div className="flex items-end gap-1.5 h-32 mb-4 px-1">
+            {MONTHS.map(m => {
+              const val = data[m.key] || 0;
+              const height = maxMonthCA > 0 ? Math.max(4, (val / maxMonthCA) * 100) : 4;
+              return (
+                <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    {val > 0 ? fmtShort(val) : ''}
+                  </span>
+                  <div
+                    className="w-full rounded-t-md bg-gradient-to-t from-primary to-primary/60 transition-all duration-500 hover:from-primary hover:to-primary/80"
+                    style={{ height: `${height}%`, minHeight: '4px' }}
+                  />
+                  <span className="text-[10px] text-muted-foreground">{m.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <Separator className="mb-4" />
+          {/* Input grid */}
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
             {MONTHS.map(m => (
               <div key={m.key}>
-                <label className="text-xs text-muted-foreground">{m.label}</label>
+                <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
                 <Input
                   type="number"
                   min={0}
@@ -200,7 +408,7 @@ export default function Fiscalite() {
                   placeholder="0"
                   onChange={e => handleChange(m.key, e.target.value)}
                   onBlur={() => saveField(m.key, data[m.key] || 0)}
-                  className="mt-1"
+                  className="mt-1 text-sm"
                 />
               </div>
             ))}
@@ -210,65 +418,95 @@ export default function Fiscalite() {
 
       {/* Trimestres */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {QUARTERS.map((q, i) => (
-          <Card key={q.label}>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center justify-between">
-                <span>{q.label} — {['Jan–Mar', 'Avr–Juin', 'Juil–Sep', 'Oct–Déc'][i]}</span>
-                <Badge variant={quarterPaid[i] >= quarterImpot[i] && quarterImpot[i] > 0 ? 'default' : 'secondary'}>
-                  {quarterPaid[i] >= quarterImpot[i] && quarterImpot[i] > 0 ? 'Payé' : 'En attente'}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">CA {q.label}</span>
-                <span className="font-medium text-foreground">{fmt(quarterCA[i])}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Impôt dû (6%)</span>
-                <span className="font-medium text-foreground">{fmt(quarterImpot[i])}</span>
-              </div>
-              <div>
-                <label className="text-xs text-muted-foreground">Montant payé</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={data[q.payKey] || ''}
-                  placeholder="0"
-                  onChange={e => handleChange(q.payKey, e.target.value)}
-                  onBlur={() => saveField(q.payKey, data[q.payKey] || 0)}
-                  className="mt-1"
-                />
-              </div>
-              <div className="flex justify-between text-sm border-t border-border pt-2">
-                <span className="text-muted-foreground">Reste à payer</span>
-                <span className={`font-bold ${quarterImpot[i] - quarterPaid[i] > 0 ? 'text-destructive' : 'text-green-600'}`}>
-                  {fmt(Math.max(0, quarterImpot[i] - quarterPaid[i]))}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        {QUARTERS.map((q, i) => {
+          const reste = Math.max(0, quarterImpot[i] - quarterPaid[i]);
+          const paid = quarterImpot[i] > 0 && quarterPaid[i] >= quarterImpot[i];
+          const progress = quarterImpot[i] > 0 ? Math.min(100, (quarterPaid[i] / quarterImpot[i]) * 100) : 0;
+
+          return (
+            <Card key={q.label} className={`relative overflow-hidden border bg-gradient-to-br ${q.color}`}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold">{q.label}</span>
+                    <span className="text-xs text-muted-foreground">{q.period}</span>
+                  </div>
+                  <Badge variant={paid ? 'default' : 'secondary'} className={`gap-1 ${paid ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}>
+                    {paid ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                    {paid ? 'Soldé' : 'En cours'}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-lg bg-card/80">
+                    <p className="text-xs text-muted-foreground">CA</p>
+                    <p className="text-lg font-bold text-foreground">{fmt(quarterCA[i])}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-card/80">
+                    <p className="text-xs text-muted-foreground">Impôt dû</p>
+                    <p className="text-lg font-bold text-foreground">{fmt(quarterImpot[i])}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Montant payé</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={data[q.payKey] || ''}
+                    placeholder="0"
+                    onChange={e => handleChange(q.payKey, e.target.value)}
+                    onBlur={() => saveField(q.payKey, data[q.payKey] || 0)}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">Progression</span>
+                    <span className="font-medium">{progress.toFixed(0)}%</span>
+                  </div>
+                  <Progress value={progress} className="h-2" />
+                </div>
+
+                <div className="flex justify-between items-center pt-2 border-t border-border/50">
+                  <span className="text-sm text-muted-foreground">Reste à payer</span>
+                  <span className={`text-lg font-bold ${reste > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
+                    {fmt(reste)}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Projections */}
-      <Card>
-        <CardHeader><CardTitle className="text-base">📈 Projections annuelles</CardTitle></CardHeader>
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-primary" />
+            Projections annuelles
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-3 rounded-lg bg-muted">
-              <p className="text-xs text-muted-foreground">Moyenne mensuelle</p>
-              <p className="text-lg font-bold text-foreground">{fmt(moyenne)}</p>
-              <p className="text-xs text-muted-foreground">sur {monthsFilled} mois renseignés</p>
+            <div className="p-4 rounded-xl bg-card border border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Moyenne mensuelle</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{fmt(moyenne)}</p>
+              <p className="text-xs text-muted-foreground mt-1">sur {monthsFilled} mois renseignés</p>
             </div>
-            <div className="p-3 rounded-lg bg-muted">
-              <p className="text-xs text-muted-foreground">CA projeté (12 mois)</p>
-              <p className="text-lg font-bold text-foreground">{fmt(caProjecte)}</p>
+            <div className="p-4 rounded-xl bg-card border border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CA projeté (12 mois)</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{fmt(caProjecte)}</p>
+              {caProjecte >= SEUIL_TVA && (
+                <p className="text-xs text-destructive mt-1 font-medium">⚠ Dépasse le seuil TVA</p>
+              )}
             </div>
-            <div className="p-3 rounded-lg bg-muted">
-              <p className="text-xs text-muted-foreground">Impôt projeté</p>
-              <p className="text-lg font-bold text-foreground">{fmt(impotProjecte)}</p>
+            <div className="p-4 rounded-xl bg-card border border-border">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Impôt projeté</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{fmt(impotProjecte)}</p>
             </div>
           </div>
         </CardContent>
