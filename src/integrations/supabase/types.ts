@@ -38,6 +38,33 @@ export type Database = {
         }
         Relationships: []
       }
+      data_backups: {
+        Row: {
+          backup_date: string
+          created_at: string
+          id: string
+          sql_content: string
+          tables_included: string[]
+          user_id: string
+        }
+        Insert: {
+          backup_date?: string
+          created_at?: string
+          id?: string
+          sql_content: string
+          tables_included?: string[]
+          user_id: string
+        }
+        Update: {
+          backup_date?: string
+          created_at?: string
+          id?: string
+          sql_content?: string
+          tables_included?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
       fiscal_data: {
         Row: {
           ca_aout: number
@@ -54,6 +81,10 @@ export type Database = {
           ca_sept: number
           created_at: string
           id: string
+          locked_t1: boolean
+          locked_t2: boolean
+          locked_t3: boolean
+          locked_t4: boolean
           paiement_t1: number
           paiement_t2: number
           paiement_t3: number
@@ -77,6 +108,10 @@ export type Database = {
           ca_sept?: number
           created_at?: string
           id?: string
+          locked_t1?: boolean
+          locked_t2?: boolean
+          locked_t3?: boolean
+          locked_t4?: boolean
           paiement_t1?: number
           paiement_t2?: number
           paiement_t3?: number
@@ -100,6 +135,10 @@ export type Database = {
           ca_sept?: number
           created_at?: string
           id?: string
+          locked_t1?: boolean
+          locked_t2?: boolean
+          locked_t3?: boolean
+          locked_t4?: boolean
           paiement_t1?: number
           paiement_t2?: number
           paiement_t3?: number
