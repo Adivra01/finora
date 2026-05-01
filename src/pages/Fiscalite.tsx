@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   AlertTriangle, TrendingUp, Calculator, Landmark, ShieldAlert,
   FileDown, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  BarChart3, Wallet, Receipt
+  BarChart3, Wallet, Receipt, Lock, Unlock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -43,6 +43,7 @@ const TAUX = 0.06;
 const SEUIL_TVA = 30_000_000;
 
 type FiscalRecord = Record<string, number>;
+type LockRecord = Record<string, boolean>;
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
@@ -61,6 +62,7 @@ export default function Fiscalite() {
   const [recordId, setRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [locks, setLocks] = useState<LockRecord>({});
 
   const fetchData = useCallback(async () => {
     if (!userId) return;
@@ -77,12 +79,16 @@ export default function Fiscalite() {
       MONTHS.forEach(m => (rec[m.key] = Number((rows as any)[m.key]) || 0));
       QUARTERS.forEach(q => (rec[q.payKey] = Number((rows as any)[q.payKey]) || 0));
       setData(rec);
+      const lk: LockRecord = {};
+      QUARTERS.forEach((q, i) => { lk[`locked_t${i+1}`] = !!(rows as any)[`locked_t${i+1}`]; });
+      setLocks(lk);
     } else {
       setRecordId(null);
       const rec: FiscalRecord = {};
       MONTHS.forEach(m => (rec[m.key] = 0));
       QUARTERS.forEach(q => (rec[q.payKey] = 0));
       setData(rec);
+      setLocks({});
     }
     setLoading(false);
   }, [userId, year]);
@@ -104,6 +110,23 @@ export default function Fiscalite() {
     setSaving(false);
     toast({ title: '✓ Enregistré', description: `Donnée mise à jour` });
   }, [userId, recordId, year, toast]);
+
+  const lockQuarter = useCallback(async (quarterIndex: number) => {
+    if (!userId || !recordId) return;
+    const lockKey = `locked_t${quarterIndex + 1}`;
+    await supabase.from('fiscal_data').update({ [lockKey]: true, updated_at: new Date().toISOString() } as any).eq('id', recordId);
+    setLocks(prev => ({ ...prev, [lockKey]: true }));
+    toast({ title: '🔒 Trimestre validé', description: `Le ${QUARTERS[quarterIndex].label} est maintenant verrouillé.` });
+  }, [userId, recordId, toast]);
+
+  const isMonthLocked = (monthKey: string): boolean => {
+    for (let i = 0; i < QUARTERS.length; i++) {
+      if ((QUARTERS[i].months as readonly string[]).includes(monthKey)) {
+        return !!locks[`locked_t${i + 1}`];
+      }
+    }
+    return false;
+  };
 
   const handleChange = (key: string, raw: string) => {
     const val = Math.max(0, Number(raw) || 0);
@@ -409,6 +432,7 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                   onChange={e => handleChange(m.key, e.target.value)}
                   onBlur={() => saveField(m.key, data[m.key] || 0)}
                   className="mt-1 text-sm"
+                  disabled={isMonthLocked(m.key)}
                 />
               </div>
             ))}
@@ -422,6 +446,7 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
           const reste = Math.max(0, quarterImpot[i] - quarterPaid[i]);
           const paid = quarterImpot[i] > 0 && quarterPaid[i] >= quarterImpot[i];
           const progress = quarterImpot[i] > 0 ? Math.min(100, (quarterPaid[i] / quarterImpot[i]) * 100) : 0;
+          const isLocked = !!locks[`locked_t${i + 1}`];
 
           return (
             <Card key={q.label} className={`relative overflow-hidden border bg-gradient-to-br ${q.color}`}>
@@ -432,8 +457,8 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                     <span className="text-xs text-muted-foreground">{q.period}</span>
                   </div>
                   <Badge variant={paid ? 'default' : 'secondary'} className={`gap-1 ${paid ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}>
-                    {paid ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                    {paid ? 'Soldé' : 'En cours'}
+                    {isLocked ? <Lock className="w-3 h-3" /> : paid ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                    {isLocked ? 'Validé' : paid ? 'Soldé' : 'En cours'}
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -459,6 +484,7 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                     onChange={e => handleChange(q.payKey, e.target.value)}
                     onBlur={() => saveField(q.payKey, data[q.payKey] || 0)}
                     className="mt-1"
+                    disabled={isLocked}
                   />
                 </div>
 
@@ -476,6 +502,29 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                     {fmt(reste)}
                   </span>
                 </div>
+
+                {!isLocked && quarterCA[i] > 0 && (
+                  <Button
+                    variant={paid ? 'default' : 'outline'}
+                    size="sm"
+                    className="w-full gap-2 mt-2"
+                    onClick={() => {
+                      if (window.confirm(`Êtes-vous sûr de vouloir valider le ${q.label} ? Les données ne seront plus modifiables.`)) {
+                        lockQuarter(i);
+                      }
+                    }}
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    Valider & Verrouiller {q.label}
+                  </Button>
+                )}
+
+                {isLocked && (
+                  <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <Lock className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-medium text-emerald-700">Trimestre validé — Lecture seule</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
