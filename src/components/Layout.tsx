@@ -6,6 +6,7 @@ import {
   CreditCard,
   DollarSign,
   Download,
+  HardDrive,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/depenses-prevues', label: 'Dépenses prévues', icon: ClipboardList },
   { to: '/investissements', label: 'Investissements', icon: TrendingUp },
   { to: '/fiscalite', label: 'Fiscalité', icon: Landmark },
+  { to: '/sauvegardes', label: 'Sauvegardes', icon: HardDrive },
   { to: '/categories', label: 'Catégories', icon: Settings },
   { to: '/parametres', label: 'Paramètres', icon: Settings },
 ];
