@@ -80,6 +80,18 @@ export type Database = {
           ca_oct: number
           ca_sept: number
           created_at: string
+          ecom_aout: number
+          ecom_avr: number
+          ecom_dec: number
+          ecom_fev: number
+          ecom_jan: number
+          ecom_juil: number
+          ecom_juin: number
+          ecom_mai: number
+          ecom_mar: number
+          ecom_nov: number
+          ecom_oct: number
+          ecom_sept: number
           id: string
           locked_t1: boolean
           locked_t2: boolean
@@ -89,6 +101,18 @@ export type Database = {
           paiement_t2: number
           paiement_t3: number
           paiement_t4: number
+          service_aout: number
+          service_avr: number
+          service_dec: number
+          service_fev: number
+          service_jan: number
+          service_juil: number
+          service_juin: number
+          service_mai: number
+          service_mar: number
+          service_nov: number
+          service_oct: number
+          service_sept: number
           updated_at: string
           user_id: string
           year: number
@@ -107,6 +131,18 @@ export type Database = {
           ca_oct?: number
           ca_sept?: number
           created_at?: string
+          ecom_aout?: number
+          ecom_avr?: number
+          ecom_dec?: number
+          ecom_fev?: number
+          ecom_jan?: number
+          ecom_juil?: number
+          ecom_juin?: number
+          ecom_mai?: number
+          ecom_mar?: number
+          ecom_nov?: number
+          ecom_oct?: number
+          ecom_sept?: number
           id?: string
           locked_t1?: boolean
           locked_t2?: boolean
@@ -116,6 +152,18 @@ export type Database = {
           paiement_t2?: number
           paiement_t3?: number
           paiement_t4?: number
+          service_aout?: number
+          service_avr?: number
+          service_dec?: number
+          service_fev?: number
+          service_jan?: number
+          service_juil?: number
+          service_juin?: number
+          service_mai?: number
+          service_mar?: number
+          service_nov?: number
+          service_oct?: number
+          service_sept?: number
           updated_at?: string
           user_id: string
           year?: number
@@ -134,6 +182,18 @@ export type Database = {
           ca_oct?: number
           ca_sept?: number
           created_at?: string
+          ecom_aout?: number
+          ecom_avr?: number
+          ecom_dec?: number
+          ecom_fev?: number
+          ecom_jan?: number
+          ecom_juil?: number
+          ecom_juin?: number
+          ecom_mai?: number
+          ecom_mar?: number
+          ecom_nov?: number
+          ecom_oct?: number
+          ecom_sept?: number
           id?: string
           locked_t1?: boolean
           locked_t2?: boolean
@@ -143,6 +203,18 @@ export type Database = {
           paiement_t2?: number
           paiement_t3?: number
           paiement_t4?: number
+          service_aout?: number
+          service_avr?: number
+          service_dec?: number
+          service_fev?: number
+          service_jan?: number
+          service_juil?: number
+          service_juin?: number
+          service_mai?: number
+          service_mar?: number
+          service_nov?: number
+          service_oct?: number
+          service_sept?: number
           updated_at?: string
           user_id?: string
           year?: number
