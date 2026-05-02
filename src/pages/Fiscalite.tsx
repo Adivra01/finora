@@ -11,30 +11,31 @@ import { Separator } from '@/components/ui/separator';
 import {
   AlertTriangle, TrendingUp, Calculator, Landmark, ShieldAlert,
   FileDown, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  BarChart3, Wallet, Receipt, Lock, Unlock
+  BarChart3, Wallet, Receipt, Lock, Unlock, ShoppingCart, Briefcase
 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 
 const MONTHS = [
-  { key: 'ca_jan', label: 'Jan', full: 'Janvier' },
-  { key: 'ca_fev', label: 'Fév', full: 'Février' },
-  { key: 'ca_mar', label: 'Mar', full: 'Mars' },
-  { key: 'ca_avr', label: 'Avr', full: 'Avril' },
-  { key: 'ca_mai', label: 'Mai', full: 'Mai' },
-  { key: 'ca_juin', label: 'Juin', full: 'Juin' },
-  { key: 'ca_juil', label: 'Juil', full: 'Juillet' },
-  { key: 'ca_aout', label: 'Aoû', full: 'Août' },
-  { key: 'ca_sept', label: 'Sep', full: 'Septembre' },
-  { key: 'ca_oct', label: 'Oct', full: 'Octobre' },
-  { key: 'ca_nov', label: 'Nov', full: 'Novembre' },
-  { key: 'ca_dec', label: 'Déc', full: 'Décembre' },
+  { key: 'jan', label: 'Jan', full: 'Janvier' },
+  { key: 'fev', label: 'Fév', full: 'Février' },
+  { key: 'mar', label: 'Mar', full: 'Mars' },
+  { key: 'avr', label: 'Avr', full: 'Avril' },
+  { key: 'mai', label: 'Mai', full: 'Mai' },
+  { key: 'juin', label: 'Juin', full: 'Juin' },
+  { key: 'juil', label: 'Juil', full: 'Juillet' },
+  { key: 'aout', label: 'Aoû', full: 'Août' },
+  { key: 'sept', label: 'Sep', full: 'Septembre' },
+  { key: 'oct', label: 'Oct', full: 'Octobre' },
+  { key: 'nov', label: 'Nov', full: 'Novembre' },
+  { key: 'dec', label: 'Déc', full: 'Décembre' },
 ] as const;
 
 const QUARTERS = [
-  { label: 'T1', period: 'Janvier – Mars', months: ['ca_jan', 'ca_fev', 'ca_mar'], payKey: 'paiement_t1', color: 'from-blue-500/10 to-blue-600/5 border-blue-500/20' },
-  { label: 'T2', period: 'Avril – Juin', months: ['ca_avr', 'ca_mai', 'ca_juin'], payKey: 'paiement_t2', color: 'from-emerald-500/10 to-emerald-600/5 border-emerald-500/20' },
-  { label: 'T3', period: 'Juillet – Septembre', months: ['ca_juil', 'ca_aout', 'ca_sept'], payKey: 'paiement_t3', color: 'from-amber-500/10 to-amber-600/5 border-amber-500/20' },
-  { label: 'T4', period: 'Octobre – Décembre', months: ['ca_oct', 'ca_nov', 'ca_dec'], payKey: 'paiement_t4', color: 'from-purple-500/10 to-purple-600/5 border-purple-500/20' },
+  { label: 'T1', period: 'Janvier – Mars', months: ['jan', 'fev', 'mar'], payKey: 'paiement_t1', color: 'from-blue-500/10 to-blue-600/5 border-blue-500/20' },
+  { label: 'T2', period: 'Avril – Juin', months: ['avr', 'mai', 'juin'], payKey: 'paiement_t2', color: 'from-emerald-500/10 to-emerald-600/5 border-emerald-500/20' },
+  { label: 'T3', period: 'Juillet – Septembre', months: ['juil', 'aout', 'sept'], payKey: 'paiement_t3', color: 'from-amber-500/10 to-amber-600/5 border-amber-500/20' },
+  { label: 'T4', period: 'Octobre – Décembre', months: ['oct', 'nov', 'dec'], payKey: 'paiement_t4', color: 'from-purple-500/10 to-purple-600/5 border-purple-500/20' },
 ] as const;
 
 const YEARS = Array.from({ length: 15 }, (_, i) => 2026 + i); // 2026 to 2040
@@ -44,6 +45,10 @@ const SEUIL_TVA = 30_000_000;
 
 type FiscalRecord = Record<string, number>;
 type LockRecord = Record<string, boolean>;
+
+const ecomKey = (m: string) => `ecom_${m}`;
+const serviceKey = (m: string) => `service_${m}`;
+const caKey = (m: string) => `ca_${m}`;
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
@@ -76,7 +81,11 @@ export default function Fiscalite() {
     if (rows) {
       setRecordId(rows.id);
       const rec: FiscalRecord = {};
-      MONTHS.forEach(m => (rec[m.key] = Number((rows as any)[m.key]) || 0));
+      MONTHS.forEach(m => {
+        rec[ecomKey(m.key)] = Number((rows as any)[ecomKey(m.key)]) || 0;
+        rec[serviceKey(m.key)] = Number((rows as any)[serviceKey(m.key)]) || 0;
+        rec[caKey(m.key)] = Number((rows as any)[caKey(m.key)]) || 0;
+      });
       QUARTERS.forEach(q => (rec[q.payKey] = Number((rows as any)[q.payKey]) || 0));
       setData(rec);
       const lk: LockRecord = {};
@@ -85,7 +94,11 @@ export default function Fiscalite() {
     } else {
       setRecordId(null);
       const rec: FiscalRecord = {};
-      MONTHS.forEach(m => (rec[m.key] = 0));
+      MONTHS.forEach(m => {
+        rec[ecomKey(m.key)] = 0;
+        rec[serviceKey(m.key)] = 0;
+        rec[caKey(m.key)] = 0;
+      });
       QUARTERS.forEach(q => (rec[q.payKey] = 0));
       setData(rec);
       setLocks({});
@@ -128,29 +141,65 @@ export default function Fiscalite() {
     return false;
   };
 
-  const handleChange = (key: string, raw: string) => {
+  const handleChange = (key: string, raw: string, monthKey?: string) => {
     const val = Math.max(0, Number(raw) || 0);
-    setData(prev => ({ ...prev, [key]: val }));
+    setData(prev => {
+      const next = { ...prev, [key]: val };
+      if (monthKey) {
+        const eVal = key === ecomKey(monthKey) ? val : (prev[ecomKey(monthKey)] || 0);
+        const sVal = key === serviceKey(monthKey) ? val : (prev[serviceKey(monthKey)] || 0);
+        next[caKey(monthKey)] = eVal + sVal;
+      }
+      return next;
+    });
   };
 
+  const saveFieldWithCA = useCallback(async (key: string, value: number, monthKey: string) => {
+    if (!userId) return;
+    setSaving(true);
+    const eVal = key === ecomKey(monthKey) ? value : (data[ecomKey(monthKey)] || 0);
+    const sVal = key === serviceKey(monthKey) ? value : (data[serviceKey(monthKey)] || 0);
+    const caVal = eVal + sVal;
+    const updates: any = {
+      [key]: value,
+      [caKey(monthKey)]: caVal,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (recordId) {
+      await supabase.from('fiscal_data').update(updates as any).eq('id', recordId);
+    } else {
+      const insert: any = { user_id: userId, year, ...updates };
+      const { data: row } = await supabase.from('fiscal_data').insert(insert).select().single();
+      if (row) setRecordId(row.id);
+    }
+    setData(prev => ({ ...prev, [caKey(monthKey)]: caVal }));
+    setSaving(false);
+    toast({ title: '✓ Enregistré', description: `Donnée mise à jour` });
+  }, [userId, recordId, year, toast, data]);
+
   // ---- Calculs ----
-  const quarterCA = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[m] || 0), 0));
+  const quarterCA = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[caKey(m)] || 0), 0));
+  const quarterEcom = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[ecomKey(m)] || 0), 0));
+  const quarterService = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[serviceKey(m)] || 0), 0));
   const quarterImpot = quarterCA.map(ca => ca * TAUX);
   const quarterPaid = QUARTERS.map(q => data[q.payKey] || 0);
 
   const caAnnuel = quarterCA.reduce((a, b) => a + b, 0);
+  const ecomAnnuel = quarterEcom.reduce((a, b) => a + b, 0);
+  const serviceAnnuel = quarterService.reduce((a, b) => a + b, 0);
   const impotAnnuel = caAnnuel * TAUX;
   const totalPaye = quarterPaid.reduce((a, b) => a + b, 0);
   const solde = impotAnnuel - totalPaye;
   const progressPaiement = impotAnnuel > 0 ? Math.min(100, (totalPaye / impotAnnuel) * 100) : 0;
 
-  const monthsFilled = MONTHS.filter(m => (data[m.key] || 0) > 0).length;
+  const monthsFilled = MONTHS.filter(m => (data[caKey(m.key)] || 0) > 0).length;
   const moyenne = monthsFilled > 0 ? caAnnuel / monthsFilled : 0;
   const caProjecte = moyenne * 12;
   const impotProjecte = caProjecte * TAUX;
 
   // Max month CA for chart
-  const maxMonthCA = Math.max(...MONTHS.map(m => data[m.key] || 0), 1);
+  const maxMonthCA = Math.max(...MONTHS.map(m => data[caKey(m.key)] || 0), 1);
 
   // ---- Alertes ----
   const alerts: { type: 'destructive' | 'default'; title: string; msg: string }[] = [];
@@ -402,7 +451,9 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
           {/* Visual bars */}
           <div className="flex items-end gap-1.5 h-32 mb-4 px-1">
             {MONTHS.map(m => {
-              const val = data[m.key] || 0;
+              const eVal = data[ecomKey(m.key)] || 0;
+              const sVal = data[serviceKey(m.key)] || 0;
+              const val = eVal + sVal;
               const height = maxMonthCA > 0 ? Math.max(4, (val / maxMonthCA) * 100) : 4;
               return (
                 <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
@@ -410,33 +461,113 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                     {val > 0 ? fmtShort(val) : ''}
                   </span>
                   <div
-                    className="w-full rounded-t-md bg-gradient-to-t from-primary to-primary/60 transition-all duration-500 hover:from-primary hover:to-primary/80"
+                    className="w-full flex flex-col-reverse rounded-t-md overflow-hidden"
                     style={{ height: `${height}%`, minHeight: '4px' }}
-                  />
+                  >
+                    {eVal > 0 && (
+                      <div
+                        className="w-full bg-gradient-to-t from-primary to-primary/60"
+                        style={{ height: val > 0 ? `${(eVal / val) * 100}%` : '0', minHeight: '2px' }}
+                      />
+                    )}
+                    {sVal > 0 && (
+                      <div
+                        className="w-full bg-gradient-to-t from-amber-500 to-amber-400/60"
+                        style={{ height: val > 0 ? `${(sVal / val) * 100}%` : '0', minHeight: '2px' }}
+                      />
+                    )}
+                  </div>
                   <span className="text-[10px] text-muted-foreground">{m.label}</span>
                 </div>
               );
             })}
           </div>
+          <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-primary" /> E-commerce</div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-amber-500" /> Services</div>
+          </div>
           <Separator className="mb-4" />
           {/* Input grid */}
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-            {MONTHS.map(m => (
-              <div key={m.key}>
-                <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={data[m.key] || ''}
-                  placeholder="0"
-                  onChange={e => handleChange(m.key, e.target.value)}
-                  onBlur={() => saveField(m.key, data[m.key] || 0)}
-                  className="mt-1 text-sm"
-                  disabled={isMonthLocked(m.key)}
-                />
+          <Tabs defaultValue="ecom" className="w-full">
+            <TabsList className="mb-4">
+              <TabsTrigger value="ecom" className="gap-1.5">
+                <ShoppingCart className="w-3.5 h-3.5" /> E-commerce
+              </TabsTrigger>
+              <TabsTrigger value="service" className="gap-1.5">
+                <Briefcase className="w-3.5 h-3.5" /> Prestation de service
+              </TabsTrigger>
+              <TabsTrigger value="total" className="gap-1.5">
+                <Calculator className="w-3.5 h-3.5" /> Total combiné
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="ecom">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {MONTHS.map(m => (
+                  <div key={m.key}>
+                    <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={data[ecomKey(m.key)] || ''}
+                      placeholder="0"
+                      onChange={e => handleChange(ecomKey(m.key), e.target.value, m.key)}
+                      onBlur={() => saveFieldWithCA(ecomKey(m.key), data[ecomKey(m.key)] || 0, m.key)}
+                      className="mt-1 text-sm"
+                      disabled={isMonthLocked(m.key)}
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              <div className="mt-3 text-right text-sm font-semibold text-foreground">
+                Total E-commerce : {fmt(ecomAnnuel)}
+              </div>
+            </TabsContent>
+            <TabsContent value="service">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {MONTHS.map(m => (
+                  <div key={m.key}>
+                    <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={data[serviceKey(m.key)] || ''}
+                      placeholder="0"
+                      onChange={e => handleChange(serviceKey(m.key), e.target.value, m.key)}
+                      onBlur={() => saveFieldWithCA(serviceKey(m.key), data[serviceKey(m.key)] || 0, m.key)}
+                      className="mt-1 text-sm"
+                      disabled={isMonthLocked(m.key)}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-right text-sm font-semibold text-foreground">
+                Total Services : {fmt(serviceAnnuel)}
+              </div>
+            </TabsContent>
+            <TabsContent value="total">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {MONTHS.map(m => {
+                  const total = (data[ecomKey(m.key)] || 0) + (data[serviceKey(m.key)] || 0);
+                  return (
+                    <div key={m.key}>
+                      <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
+                      <div className="mt-1 text-sm p-2 rounded-md bg-muted/50 border border-border font-semibold text-foreground">
+                        {fmt(total)}
+                      </div>
+                      <div className="flex gap-1 mt-0.5">
+                        <span className="text-[10px] text-primary">{fmtShort(data[ecomKey(m.key)] || 0)}</span>
+                        <span className="text-[10px] text-muted-foreground">+</span>
+                        <span className="text-[10px] text-amber-600">{fmtShort(data[serviceKey(m.key)] || 0)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-3 text-right text-sm font-semibold text-foreground">
+                Total combiné : {fmt(caAnnuel)}
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 
@@ -467,6 +598,10 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                   <div className="p-3 rounded-lg bg-card/80">
                     <p className="text-xs text-muted-foreground">CA</p>
                     <p className="text-lg font-bold text-foreground">{fmt(quarterCA[i])}</p>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-[10px] text-primary">E-com: {fmtShort(quarterEcom[i])}</span>
+                      <span className="text-[10px] text-amber-600">Serv: {fmtShort(quarterService[i])}</span>
+                    </div>
                   </div>
                   <div className="p-3 rounded-lg bg-card/80">
                     <p className="text-xs text-muted-foreground">Impôt dû</p>
