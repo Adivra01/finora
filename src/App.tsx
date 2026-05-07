@@ -17,6 +17,7 @@ import Transactions from "./pages/Transactions";
 import Settings from "./pages/Settings";
 import Fiscalite from "./pages/Fiscalite";
 import Backups from "./pages/Backups";
+import Facturation from "./pages/Facturation";
 
 const queryClient = new QueryClient();
 
@@ -40,6 +41,7 @@ function AppRoutes() {
         <Route path="investissements" element={<Investments />} />
         <Route path="fiscalite" element={<Fiscalite />} />
         <Route path="sauvegardes" element={<Backups />} />
+        <Route path="facturation" element={<Facturation />} />
         <Route path="categories" element={<Categories />} />
         <Route path="depenses-prevues" element={<PlannedExpenses />} />
         <Route path="parametres" element={<Settings />} />
