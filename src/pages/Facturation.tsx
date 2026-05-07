@@ -70,7 +70,7 @@ const fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'decimal', minimumFractionDigits: 0 }).format(n) + ' XOF';
 
 export default function Facturation() {
-  const { user } = useAuth();
+  const { userId } = useAuth();
   const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,12 +98,12 @@ export default function Facturation() {
   ]);
 
   const fetchInvoices = async () => {
-    if (!user) return;
+    if (!userId) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('invoices')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
     if (!error && data) setInvoices(data as Invoice[]);
     setLoading(false);
@@ -111,7 +111,7 @@ export default function Facturation() {
 
   useEffect(() => {
     fetchInvoices();
-  }, [user]);
+  }, [userId]);
 
   const generateNumber = (type: string) => {
     const prefix = type === 'facture' ? 'FAC' : 'DEV';
@@ -201,7 +201,7 @@ export default function Facturation() {
   };
 
   const saveInvoice = async () => {
-    if (!user) return;
+    if (!userId) return;
     if (!form.client_name.trim()) {
       toast({ title: 'Erreur', description: 'Le nom du client est requis', variant: 'destructive' });
       return;
@@ -212,7 +212,7 @@ export default function Facturation() {
     }
 
     const invoiceData = {
-      user_id: user.id,
+      user_id: userId,
       invoice_number: editingInvoice ? editingInvoice.invoice_number : generateNumber(form.type),
       type: form.type,
       client_name: form.client_name.trim(),
