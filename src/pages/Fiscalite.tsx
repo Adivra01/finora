@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   AlertTriangle, TrendingUp, Calculator, Landmark, ShieldAlert,
   FileDown, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  BarChart3, Wallet, Receipt, Lock, Unlock, ShoppingCart, Briefcase
+  BarChart3, Wallet, Receipt, Lock, Unlock, ShoppingCart, Briefcase, Database
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
@@ -48,6 +48,7 @@ type LockRecord = Record<string, boolean>;
 
 const ecomKey = (m: string) => `ecom_${m}`;
 const serviceKey = (m: string) => `service_${m}`;
+const consultKey = (m: string) => `consult_${m}`;
 const caKey = (m: string) => `ca_${m}`;
 
 const fmt = (n: number) =>
@@ -84,6 +85,7 @@ export default function Fiscalite() {
       MONTHS.forEach(m => {
         rec[ecomKey(m.key)] = Number((rows as any)[ecomKey(m.key)]) || 0;
         rec[serviceKey(m.key)] = Number((rows as any)[serviceKey(m.key)]) || 0;
+        rec[consultKey(m.key)] = Number((rows as any)[consultKey(m.key)]) || 0;
         rec[caKey(m.key)] = Number((rows as any)[caKey(m.key)]) || 0;
       });
       QUARTERS.forEach(q => (rec[q.payKey] = Number((rows as any)[q.payKey]) || 0));
@@ -97,6 +99,7 @@ export default function Fiscalite() {
       MONTHS.forEach(m => {
         rec[ecomKey(m.key)] = 0;
         rec[serviceKey(m.key)] = 0;
+        rec[consultKey(m.key)] = 0;
         rec[caKey(m.key)] = 0;
       });
       QUARTERS.forEach(q => (rec[q.payKey] = 0));
@@ -148,7 +151,8 @@ export default function Fiscalite() {
       if (monthKey) {
         const eVal = key === ecomKey(monthKey) ? val : (prev[ecomKey(monthKey)] || 0);
         const sVal = key === serviceKey(monthKey) ? val : (prev[serviceKey(monthKey)] || 0);
-        next[caKey(monthKey)] = eVal + sVal;
+        const cVal = key === consultKey(monthKey) ? val : (prev[consultKey(monthKey)] || 0);
+        next[caKey(monthKey)] = eVal + sVal + cVal;
       }
       return next;
     });
@@ -159,7 +163,8 @@ export default function Fiscalite() {
     setSaving(true);
     const eVal = key === ecomKey(monthKey) ? value : (data[ecomKey(monthKey)] || 0);
     const sVal = key === serviceKey(monthKey) ? value : (data[serviceKey(monthKey)] || 0);
-    const caVal = eVal + sVal;
+    const cVal = key === consultKey(monthKey) ? value : (data[consultKey(monthKey)] || 0);
+    const caVal = eVal + sVal + cVal;
     const updates: any = {
       [key]: value,
       [caKey(monthKey)]: caVal,
@@ -182,12 +187,14 @@ export default function Fiscalite() {
   const quarterCA = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[caKey(m)] || 0), 0));
   const quarterEcom = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[ecomKey(m)] || 0), 0));
   const quarterService = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[serviceKey(m)] || 0), 0));
+  const quarterConsult = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[consultKey(m)] || 0), 0));
   const quarterImpot = quarterCA.map(ca => ca * TAUX);
   const quarterPaid = QUARTERS.map(q => data[q.payKey] || 0);
 
   const caAnnuel = quarterCA.reduce((a, b) => a + b, 0);
   const ecomAnnuel = quarterEcom.reduce((a, b) => a + b, 0);
   const serviceAnnuel = quarterService.reduce((a, b) => a + b, 0);
+  const consultAnnuel = quarterConsult.reduce((a, b) => a + b, 0);
   const impotAnnuel = caAnnuel * TAUX;
   const totalPaye = quarterPaid.reduce((a, b) => a + b, 0);
   const solde = impotAnnuel - totalPaye;
