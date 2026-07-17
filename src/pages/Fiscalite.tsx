@@ -281,18 +281,17 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
 <div class="section">
   <h2>Chiffre d'affaires mensuel</h2>
   <table>
-    <tr><th>Mois</th><th class="text-right">E-commerce</th><th class="text-right">Services</th><th class="text-right">CA Total</th><th class="text-right">Impôt (6%)</th></tr>
-    ${MONTHS.map(m => `<tr><td>${m.full}</td><td class="text-right">${fmt(data[ecomKey(m.key)] || 0)}</td><td class="text-right">${fmt(data[serviceKey(m.key)] || 0)}</td><td class="text-right bold">${fmt(data[caKey(m.key)] || 0)}</td><td class="text-right">${fmt((data[caKey(m.key)] || 0) * TAUX)}</td></tr>`).join('')}
-    <tr class="bold" style="background:#e8f0fe"><td>Total</td><td class="text-right">${fmt(ecomAnnuel)}</td><td class="text-right">${fmt(serviceAnnuel)}</td><td class="text-right">${fmt(caAnnuel)}</td><td class="text-right">${fmt(impotAnnuel)}</td></tr>
+    <tr><th>Mois</th><th class="text-right">E-commerce</th><th class="text-right">Services</th><th class="text-right">Consultante data</th><th class="text-right">CA Total</th><th class="text-right">Impôt (6%)</th></tr>
+    ${MONTHS.map(m => `<tr><td>${m.full}</td><td class="text-right">${fmt(data[ecomKey(m.key)] || 0)}</td><td class="text-right">${fmt(data[serviceKey(m.key)] || 0)}</td><td class="text-right">${fmt(data[consultKey(m.key)] || 0)}</td><td class="text-right bold">${fmt(data[caKey(m.key)] || 0)}</td><td class="text-right">${fmt((data[caKey(m.key)] || 0) * TAUX)}</td></tr>`).join('')}
+    <tr class="bold" style="background:#e8f0fe"><td>Total</td><td class="text-right">${fmt(ecomAnnuel)}</td><td class="text-right">${fmt(serviceAnnuel)}</td><td class="text-right">${fmt(consultAnnuel)}</td><td class="text-right">${fmt(caAnnuel)}</td><td class="text-right">${fmt(impotAnnuel)}</td></tr>
   </table>
 </div>
 
 <div class="section">
   <h2>Détail trimestriel</h2>
   <table>
-    <tr><th>Trimestre</th><th class="text-right">CA</th><th class="text-right">Impôt dû</th><th class="text-right">Payé</th><th class="text-right">Reste</th></tr>
-    <tr><th>Trimestre</th><th class="text-right">E-commerce</th><th class="text-right">Services</th><th class="text-right">CA Total</th><th class="text-right">Impôt dû</th><th class="text-right">Payé</th><th class="text-right">Reste</th></tr>
-    ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="text-right">${fmt(quarterEcom[i])}</td><td class="text-right">${fmt(quarterService[i])}</td><td class="text-right bold">${fmt(quarterCA[i])}</td><td class="text-right">${fmt(quarterImpot[i])}</td><td class="text-right">${fmt(quarterPaid[i])}</td><td class="text-right bold ${quarterImpot[i] - quarterPaid[i] > 0 ? 'style="color:#ef4444"' : ''}">${fmt(Math.max(0, quarterImpot[i] - quarterPaid[i]))}</td></tr>`).join('')}
+    <tr><th>Trimestre</th><th class="text-right">E-commerce</th><th class="text-right">Services</th><th class="text-right">Consultante data</th><th class="text-right">CA Total</th><th class="text-right">Impôt dû</th><th class="text-right">Payé</th><th class="text-right">Reste</th></tr>
+    ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="text-right">${fmt(quarterEcom[i])}</td><td class="text-right">${fmt(quarterService[i])}</td><td class="text-right">${fmt(quarterConsult[i])}</td><td class="text-right bold">${fmt(quarterCA[i])}</td><td class="text-right">${fmt(quarterImpot[i])}</td><td class="text-right">${fmt(quarterPaid[i])}</td><td class="text-right bold ${quarterImpot[i] - quarterPaid[i] > 0 ? 'style="color:#ef4444"' : ''}">${fmt(Math.max(0, quarterImpot[i] - quarterPaid[i]))}</td></tr>`).join('')}
   </table>
 </div>
 
