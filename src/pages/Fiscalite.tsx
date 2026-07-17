@@ -144,6 +144,16 @@ export default function Fiscalite() {
     return false;
   };
 
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonthIdx = now.getMonth();
+  const isMonthPast = (monthKey: string): boolean => {
+    if (year !== currentYear) return false;
+    const idx = MONTHS.findIndex(m => m.key === monthKey);
+    return idx < currentMonthIdx;
+  };
+  const isMonthDisabled = (monthKey: string) => isMonthLocked(monthKey) || isMonthPast(monthKey);
+
   const handleChange = (key: string, raw: string, monthKey?: string) => {
     const val = Math.max(0, Number(raw) || 0);
     setData(prev => {
