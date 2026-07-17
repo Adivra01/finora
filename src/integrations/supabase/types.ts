@@ -79,6 +79,18 @@ export type Database = {
           ca_nov: number
           ca_oct: number
           ca_sept: number
+          consult_aout: number
+          consult_avr: number
+          consult_dec: number
+          consult_fev: number
+          consult_jan: number
+          consult_juil: number
+          consult_juin: number
+          consult_mai: number
+          consult_mar: number
+          consult_nov: number
+          consult_oct: number
+          consult_sept: number
           created_at: string
           ecom_aout: number
           ecom_avr: number
@@ -130,6 +142,18 @@ export type Database = {
           ca_nov?: number
           ca_oct?: number
           ca_sept?: number
+          consult_aout?: number
+          consult_avr?: number
+          consult_dec?: number
+          consult_fev?: number
+          consult_jan?: number
+          consult_juil?: number
+          consult_juin?: number
+          consult_mai?: number
+          consult_mar?: number
+          consult_nov?: number
+          consult_oct?: number
+          consult_sept?: number
           created_at?: string
           ecom_aout?: number
           ecom_avr?: number
@@ -181,6 +205,18 @@ export type Database = {
           ca_nov?: number
           ca_oct?: number
           ca_sept?: number
+          consult_aout?: number
+          consult_avr?: number
+          consult_dec?: number
+          consult_fev?: number
+          consult_jan?: number
+          consult_juil?: number
+          consult_juin?: number
+          consult_mai?: number
+          consult_mar?: number
+          consult_nov?: number
+          consult_oct?: number
+          consult_sept?: number
           created_at?: string
           ecom_aout?: number
           ecom_avr?: number
