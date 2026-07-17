@@ -470,7 +470,8 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
             {MONTHS.map(m => {
               const eVal = data[ecomKey(m.key)] || 0;
               const sVal = data[serviceKey(m.key)] || 0;
-              const val = eVal + sVal;
+              const cVal = data[consultKey(m.key)] || 0;
+              const val = eVal + sVal + cVal;
               const height = maxMonthCA > 0 ? Math.max(4, (val / maxMonthCA) * 100) : 4;
               return (
                 <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
@@ -493,6 +494,12 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                         style={{ height: val > 0 ? `${(sVal / val) * 100}%` : '0', minHeight: '2px' }}
                       />
                     )}
+                    {cVal > 0 && (
+                      <div
+                        className="w-full bg-gradient-to-t from-violet-500 to-violet-400/60"
+                        style={{ height: val > 0 ? `${(cVal / val) * 100}%` : '0', minHeight: '2px' }}
+                      />
+                    )}
                   </div>
                   <span className="text-[10px] text-muted-foreground">{m.label}</span>
                 </div>
@@ -502,6 +509,7 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
           <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-primary" /> E-commerce</div>
             <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-amber-500" /> Services</div>
+            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-violet-500" /> Consultante data</div>
           </div>
           <Separator className="mb-4" />
           {/* Input grid */}
@@ -512,6 +520,9 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
               </TabsTrigger>
               <TabsTrigger value="service" className="gap-1.5">
                 <Briefcase className="w-3.5 h-3.5" /> Prestation de service
+              </TabsTrigger>
+              <TabsTrigger value="consult" className="gap-1.5">
+                <Database className="w-3.5 h-3.5" /> Consultante data
               </TabsTrigger>
               <TabsTrigger value="total" className="gap-1.5">
                 <Calculator className="w-3.5 h-3.5" /> Total combiné
@@ -530,7 +541,7 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                       onChange={e => handleChange(ecomKey(m.key), e.target.value, m.key)}
                       onBlur={() => saveFieldWithCA(ecomKey(m.key), data[ecomKey(m.key)] || 0, m.key)}
                       className="mt-1 text-sm"
-                      disabled={isMonthLocked(m.key)}
+                      disabled={isMonthDisabled(m.key)}
                     />
                   </div>
                 ))}
@@ -552,7 +563,7 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                       onChange={e => handleChange(serviceKey(m.key), e.target.value, m.key)}
                       onBlur={() => saveFieldWithCA(serviceKey(m.key), data[serviceKey(m.key)] || 0, m.key)}
                       className="mt-1 text-sm"
-                      disabled={isMonthLocked(m.key)}
+                      disabled={isMonthDisabled(m.key)}
                     />
                   </div>
                 ))}
@@ -561,10 +572,32 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                 Total Services : {fmt(serviceAnnuel)}
               </div>
             </TabsContent>
+            <TabsContent value="consult">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                {MONTHS.map(m => (
+                  <div key={m.key}>
+                    <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={data[consultKey(m.key)] || ''}
+                      placeholder="0"
+                      onChange={e => handleChange(consultKey(m.key), e.target.value, m.key)}
+                      onBlur={() => saveFieldWithCA(consultKey(m.key), data[consultKey(m.key)] || 0, m.key)}
+                      className="mt-1 text-sm"
+                      disabled={isMonthDisabled(m.key)}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-right text-sm font-semibold text-foreground">
+                Total Consultante data : {fmt(consultAnnuel)}
+              </div>
+            </TabsContent>
             <TabsContent value="total">
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {MONTHS.map(m => {
-                  const total = (data[ecomKey(m.key)] || 0) + (data[serviceKey(m.key)] || 0);
+                  const total = (data[ecomKey(m.key)] || 0) + (data[serviceKey(m.key)] || 0) + (data[consultKey(m.key)] || 0);
                   return (
                     <div key={m.key}>
                       <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
@@ -575,6 +608,8 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                         <span className="text-[10px] text-primary">{fmtShort(data[ecomKey(m.key)] || 0)}</span>
                         <span className="text-[10px] text-muted-foreground">+</span>
                         <span className="text-[10px] text-amber-600">{fmtShort(data[serviceKey(m.key)] || 0)}</span>
+                        <span className="text-[10px] text-muted-foreground">+</span>
+                        <span className="text-[10px] text-violet-600">{fmtShort(data[consultKey(m.key)] || 0)}</span>
                       </div>
                     </div>
                   );
@@ -618,6 +653,7 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                     <div className="flex gap-2 mt-1">
                       <span className="text-[10px] text-primary">E-com: {fmtShort(quarterEcom[i])}</span>
                       <span className="text-[10px] text-amber-600">Serv: {fmtShort(quarterService[i])}</span>
+                      <span className="text-[10px] text-violet-600">Consult: {fmtShort(quarterConsult[i])}</span>
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-card/80">
