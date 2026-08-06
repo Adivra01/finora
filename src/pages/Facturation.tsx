@@ -711,6 +711,31 @@ export default function Facturation() {
                   <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">{fmt(Number(viewingInvoice.total))}</span></div>
                 </div>
 
+                <div>
+                  <p className="text-sm font-medium mb-2 text-muted-foreground">
+                    Prévisualisation du document (avant téléchargement)
+                  </p>
+                  <InvoicePreview
+                    settings={settings}
+                    invoice={{
+                      invoice_number: viewingInvoice.invoice_number,
+                      type: viewingInvoice.type,
+                      client_name: viewingInvoice.client_name,
+                      client_email: viewingInvoice.client_email || '',
+                      client_address: viewingInvoice.client_address || '',
+                      issue_date: viewingInvoice.issue_date,
+                      due_date: viewingInvoice.due_date,
+                      notes: viewingInvoice.notes || '',
+                      subtotal: Number(viewingInvoice.subtotal),
+                      tax_rate: Number(viewingInvoice.tax_rate),
+                      tax_amount: Number(viewingInvoice.tax_amount),
+                      total: Number(viewingInvoice.total),
+                    }}
+                    items={viewItems}
+                    scale={0.6}
+                  />
+                </div>
+
                 {viewingInvoice.notes && (
                   <div className="p-3 bg-muted rounded-lg text-sm">
                     <p className="font-medium text-foreground mb-1">Notes</p>
