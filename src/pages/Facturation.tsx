@@ -31,7 +31,16 @@ import {
   CheckCircle,
   XCircle,
   Pencil,
+  Settings2,
 } from 'lucide-react';
+import {
+  DEFAULT_INVOICE_SETTINGS,
+  InvoiceSettings,
+  PAYMENT_PRESETS,
+  loadInvoiceSettings,
+  saveInvoiceSettings,
+} from '@/lib/invoiceSettings';
+import { buildInvoiceHTML } from '@/lib/invoiceTemplate';
 
 type Invoice = {
   id: string;
@@ -81,6 +90,12 @@ export default function Facturation() {
   const [viewItems, setViewItems] = useState<InvoiceItem[]>([]);
   const [filterType, setFilterType] = useState<'all' | 'facture' | 'devis'>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
+
+  useEffect(() => {
+    setSettings(loadInvoiceSettings());
+  }, []);
 
   // Form state
   const [form, setForm] = useState({
