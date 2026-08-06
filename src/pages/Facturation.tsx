@@ -41,6 +41,7 @@ import {
   saveInvoiceSettings,
 } from '@/lib/invoiceSettings';
 import { buildInvoiceHTML } from '@/lib/invoiceTemplate';
+import InvoicePreview from '@/components/InvoicePreview';
 
 type Invoice = {
   id: string;
