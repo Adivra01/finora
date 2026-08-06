@@ -725,10 +725,11 @@ export default function Facturation() {
 
       {/* Invoice template settings */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Paramètres du modèle de facture</DialogTitle>
           </DialogHeader>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -791,6 +792,13 @@ export default function Facturation() {
                 <label className="text-sm font-medium">Remerciement ligne 2</label>
                 <Input value={settings.thanksLine2} onChange={(e) => setSettings({ ...settings, thanksLine2: e.target.value })} />
               </div>
+            </div>
+          </div>
+            <div className="lg:sticky lg:top-0 self-start">
+              <p className="text-sm font-medium mb-2 text-muted-foreground">
+                Prévisualisation live (exemple)
+              </p>
+              <InvoicePreview settings={settings} scale={0.5} />
             </div>
           </div>
           <DialogFooter>
