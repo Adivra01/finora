@@ -310,60 +310,12 @@ export default function Facturation() {
   };
 
   const exportPDF = (inv: Invoice, invItems: InvoiceItem[]) => {
-    const typeLabel = inv.type === 'facture' ? 'FACTURE' : 'DEVIS';
-    const statusInfo = STATUS_LABELS[inv.status] || { label: inv.status };
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${typeLabel} ${inv.invoice_number}</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI',Tahoma,sans-serif;padding:40px;color:#1a1a2e;font-size:14px}
-.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;padding-bottom:20px;border-bottom:3px solid #3b82f6}
-.title{font-size:28px;font-weight:800;color:#3b82f6;letter-spacing:1px}
-.doc-info{text-align:right;font-size:13px;color:#555}
-.doc-info strong{color:#1a1a2e}
-.parties{display:flex;justify-content:space-between;margin-bottom:30px}
-.party{width:48%}
-.party h3{font-size:12px;text-transform:uppercase;color:#3b82f6;margin-bottom:8px;letter-spacing:1px}
-.party p{margin:3px 0;font-size:13px}
-table{width:100%;border-collapse:collapse;margin-bottom:20px}
-th{background:#3b82f6;color:#fff;padding:10px 12px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:0.5px}
-td{padding:10px 12px;border-bottom:1px solid #e5e7eb;font-size:13px}
-tr:nth-child(even){background:#f8fafc}
-.totals{margin-left:auto;width:300px}
-.totals .row{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
-.totals .total-row{border-top:2px solid #3b82f6;font-size:18px;font-weight:700;color:#3b82f6;padding-top:10px;margin-top:6px}
-.notes{margin-top:30px;padding:15px;background:#f1f5f9;border-radius:8px;font-size:13px}
-.notes h4{color:#3b82f6;margin-bottom:5px}
-.status-badge{display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:#e0e7ff;color:#3b3bcc}
-@media print{body{padding:20px}}
-</style></head><body>
-<div class="header">
-  <div><div class="title">${typeLabel}</div><div style="margin-top:4px;font-size:13px;color:#666">Fintrack — Gestion Financière</div></div>
-  <div class="doc-info">
-    <p><strong>N° :</strong> ${inv.invoice_number}</p>
-    <p><strong>Date :</strong> ${inv.issue_date}</p>
-    ${inv.due_date ? `<p><strong>Échéance :</strong> ${inv.due_date}</p>` : ''}
-    <p style="margin-top:6px"><span class="status-badge">${statusInfo.label}</span></p>
-  </div>
-</div>
-<div class="parties">
-  <div class="party"><h3>Émetteur</h3><p><strong>Votre Entreprise</strong></p><p>Bamako, Mali</p></div>
-  <div class="party"><h3>Client</h3><p><strong>${inv.client_name}</strong></p>${inv.client_email ? `<p>${inv.client_email}</p>` : ''}${inv.client_address ? `<p>${inv.client_address}</p>` : ''}</div>
-</div>
-<table><thead><tr><th>Description</th><th style="text-align:center">Qté</th><th style="text-align:right">Prix unit.</th><th style="text-align:right">Total</th></tr></thead><tbody>
-${invItems.map((it) => `<tr><td>${it.description}</td><td style="text-align:center">${it.quantity}</td><td style="text-align:right">${fmt(it.unit_price)}</td><td style="text-align:right">${fmt(it.total)}</td></tr>`).join('')}
-</tbody></table>
-<div class="totals">
-  <div class="row"><span>Sous-total</span><span>${fmt(Number(inv.subtotal))}</span></div>
-  ${Number(inv.tax_rate) > 0 ? `<div class="row"><span>Taxe (${inv.tax_rate}%)</span><span>${fmt(Number(inv.tax_amount))}</span></div>` : ''}
-  <div class="row total-row"><span>TOTAL</span><span>${fmt(Number(inv.total))}</span></div>
-</div>
-${inv.notes ? `<div class="notes"><h4>Notes</h4><p>${inv.notes}</p></div>` : ''}
-</body></html>`;
+    const html = buildInvoiceHTML(inv, invItems, settings);
     const w = window.open('', '_blank');
     if (w) {
       w.document.write(html);
       w.document.close();
-      setTimeout(() => w.print(), 500);
+      setTimeout(() => w.print(), 800);
     }
   };
 
@@ -389,6 +341,9 @@ ${inv.notes ? `<div class="notes"><h4>Notes</h4><p>${inv.notes}</p></div>` : ''}
           <p className="text-sm text-muted-foreground">Créez et gérez vos factures et devis professionnels</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => setSettingsOpen(true)} variant="outline" className="gap-2">
+            <Settings2 className="w-4 h-4" /> Modèle facture
+          </Button>
           <Button onClick={() => openNew('devis')} variant="outline" className="gap-2">
             <FileText className="w-4 h-4" /> Nouveau devis
           </Button>
@@ -764,6 +719,85 @@ ${inv.notes ? `<div class="notes"><h4>Notes</h4><p>${inv.notes}</p></div>` : ''}
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Invoice template settings */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Paramètres du modèle de facture</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Nom / société</label>
+                <Input value={settings.senderName} onChange={(e) => setSettings({ ...settings, senderName: e.target.value })} placeholder="Africademia" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Téléphone</label>
+                <Input value={settings.senderPhone} onChange={(e) => setSettings({ ...settings, senderPhone: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <Input value={settings.senderEmail} onChange={(e) => setSettings({ ...settings, senderEmail: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Adresse</label>
+                <Input value={settings.senderAddress} onChange={(e) => setSettings({ ...settings, senderAddress: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Ville (ligne de date)</label>
+                <Input value={settings.senderCity} onChange={(e) => setSettings({ ...settings, senderCity: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Devise (symbole)</label>
+                <Input value={settings.currency} onChange={(e) => setSettings({ ...settings, currency: e.target.value })} />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium">Moyen de paiement</label>
+              <Input value={settings.paymentLabel} onChange={(e) => setSettings({ ...settings, paymentLabel: e.target.value })} />
+              <div className="flex flex-wrap gap-1 mt-2">
+                {PAYMENT_PRESETS.map((p) => (
+                  <Button key={p} type="button" size="sm" variant="outline" onClick={() => setSettings({ ...settings, paymentLabel: p })}>
+                    {p.replace('Paiement effectuer par ', '').replace('Paiement par ', '')}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Libellé du compte</label>
+                <Input value={settings.paymentAccountLabel} onChange={(e) => setSettings({ ...settings, paymentAccountLabel: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">N° / IBAN / téléphone</label>
+                <Input value={settings.paymentAccount} onChange={(e) => setSettings({ ...settings, paymentAccount: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Ligne signature</label>
+                <Input value={settings.signatureLabel} onChange={(e) => setSettings({ ...settings, signatureLabel: e.target.value })} />
+              </div>
+              <div />
+              <div>
+                <label className="text-sm font-medium">Remerciement ligne 1</label>
+                <Input value={settings.thanksLine1} onChange={(e) => setSettings({ ...settings, thanksLine1: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Remerciement ligne 2</label>
+                <Input value={settings.thanksLine2} onChange={(e) => setSettings({ ...settings, thanksLine2: e.target.value })} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettings(DEFAULT_INVOICE_SETTINGS)}>Réinitialiser</Button>
+            <Button onClick={() => { saveInvoiceSettings(settings); setSettingsOpen(false); toast({ title: 'Modèle enregistré' }); }}>
+              Enregistrer
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
