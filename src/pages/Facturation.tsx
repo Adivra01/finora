@@ -41,6 +41,7 @@ import {
   saveInvoiceSettings,
 } from '@/lib/invoiceSettings';
 import { buildInvoiceHTML } from '@/lib/invoiceTemplate';
+import InvoicePreview from '@/components/InvoicePreview';
 
 type Invoice = {
   id: string;
@@ -710,6 +711,31 @@ export default function Facturation() {
                   <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-primary">{fmt(Number(viewingInvoice.total))}</span></div>
                 </div>
 
+                <div>
+                  <p className="text-sm font-medium mb-2 text-muted-foreground">
+                    Prévisualisation du document (avant téléchargement)
+                  </p>
+                  <InvoicePreview
+                    settings={settings}
+                    invoice={{
+                      invoice_number: viewingInvoice.invoice_number,
+                      type: viewingInvoice.type,
+                      client_name: viewingInvoice.client_name,
+                      client_email: viewingInvoice.client_email || '',
+                      client_address: viewingInvoice.client_address || '',
+                      issue_date: viewingInvoice.issue_date,
+                      due_date: viewingInvoice.due_date,
+                      notes: viewingInvoice.notes || '',
+                      subtotal: Number(viewingInvoice.subtotal),
+                      tax_rate: Number(viewingInvoice.tax_rate),
+                      tax_amount: Number(viewingInvoice.tax_amount),
+                      total: Number(viewingInvoice.total),
+                    }}
+                    items={viewItems}
+                    scale={0.6}
+                  />
+                </div>
+
                 {viewingInvoice.notes && (
                   <div className="p-3 bg-muted rounded-lg text-sm">
                     <p className="font-medium text-foreground mb-1">Notes</p>
@@ -724,10 +750,11 @@ export default function Facturation() {
 
       {/* Invoice template settings */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Paramètres du modèle de facture</DialogTitle>
           </DialogHeader>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -790,6 +817,13 @@ export default function Facturation() {
                 <label className="text-sm font-medium">Remerciement ligne 2</label>
                 <Input value={settings.thanksLine2} onChange={(e) => setSettings({ ...settings, thanksLine2: e.target.value })} />
               </div>
+            </div>
+          </div>
+            <div className="lg:sticky lg:top-0 self-start">
+              <p className="text-sm font-medium mb-2 text-muted-foreground">
+                Prévisualisation live (exemple)
+              </p>
+              <InvoicePreview settings={settings} scale={0.5} />
             </div>
           </div>
           <DialogFooter>
