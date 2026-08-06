@@ -11,9 +11,13 @@ import {
   Landmark,
   LayoutDashboard,
   LogOut,
+  Menu,
   Settings,
+  Tags,
   TrendingUp,
+  X,
 } from 'lucide-react';
+import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 const navItems = [
@@ -25,7 +29,7 @@ const navItems = [
   { to: '/fiscalite', label: 'Fiscalité', icon: Landmark },
   { to: '/facturation', label: 'Facturation', icon: FileText },
   { to: '/sauvegardes', label: 'Sauvegardes', icon: HardDrive },
-  { to: '/categories', label: 'Catégories', icon: Settings },
+  { to: '/categories', label: 'Catégories', icon: Tags },
   { to: '/parametres', label: 'Paramètres', icon: Settings },
 ];
 
@@ -33,6 +37,7 @@ export function Layout() {
   const { logout } = useAuth();
   const { exportData } = useData();
   const location = useLocation();
+  const [open, setOpen] = useState(false);
 
   const handleExport = () => {
     const jsonStr = exportData();
@@ -45,72 +50,81 @@ export function Layout() {
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="min-h-screen w-full bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <DollarSign className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-bold font-display text-foreground">
-                Fintrack
-              </span>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleExport}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition"
-              >
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Exporter</span>
-              </button>
-              <button
-                onClick={logout}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-destructive hover:text-destructive/80 transition"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:inline">Déconnexion</span>
-              </button>
-            </div>
-          </div>
+  const sidebar = (
+    <div className="flex h-full flex-col bg-card border-r border-border">
+      <div className="flex items-center gap-2 h-16 px-5 border-b border-border">
+        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+          <DollarSign className="w-5 h-5 text-primary-foreground" />
         </div>
-      </header>
+        <span className="text-lg font-bold font-display text-foreground">Fintrack</span>
+        <button className="ml-auto lg:hidden text-muted-foreground" onClick={() => setOpen(false)} aria-label="Fermer le menu">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
-      {/* Navigation Tabs */}
-      <nav className="bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-1 overflow-x-auto py-2">
-            {navItems.map(item => {
-              const isActive = location.pathname === item.to;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all ${
-                    isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  }`}
-                >
-                  <item.icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
-          </div>
-        </div>
+      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+        {navItems.map(item => {
+          const isActive = location.pathname === item.to;
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setOpen(false)}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              <span>{item.label}</span>
+            </NavLink>
+          );
+        })}
       </nav>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Outlet />
-      </main>
+      <div className="p-3 border-t border-border space-y-1">
+        <button
+          onClick={handleExport}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition"
+        >
+          <Download className="w-4 h-4" /> Exporter
+        </button>
+        <button
+          onClick={logout}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-destructive hover:bg-destructive/10 transition"
+        >
+          <LogOut className="w-4 h-4" /> Déconnexion
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen w-full bg-background">
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:block fixed inset-y-0 left-0 w-64 z-40">{sidebar}</aside>
+
+      {/* Mobile drawer */}
+      {open && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="w-64 h-full">{sidebar}</div>
+          <div className="flex-1 bg-foreground/40" onClick={() => setOpen(false)} />
+        </div>
+      )}
+
+      <div className="lg:pl-64">
+        <header className="lg:hidden sticky top-0 z-30 bg-card border-b border-border h-16 flex items-center px-4 gap-3">
+          <button onClick={() => setOpen(true)} className="text-foreground" aria-label="Ouvrir le menu">
+            <Menu className="w-6 h-6" />
+          </button>
+          <span className="text-lg font-bold font-display text-foreground">Fintrack</span>
+        </header>
+
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }
