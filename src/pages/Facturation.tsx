@@ -59,6 +59,7 @@ type Invoice = {
   tax_amount: number;
   total: number;
   created_at: string;
+  sender_override?: Partial<InvoiceSettings> | null;
 };
 
 type InvoiceItem = {
@@ -101,6 +102,7 @@ export default function Facturation() {
   // Form state
   const [form, setForm] = useState({
     type: 'facture',
+    invoice_number: '',
     client_name: '',
     client_email: '',
     client_address: '',
@@ -108,6 +110,13 @@ export default function Facturation() {
     due_date: '',
     notes: '',
     tax_rate: 0,
+  });
+  const [sender, setSender] = useState<Partial<InvoiceSettings>>({});
+
+  /** settings merged with the per-invoice sender override */
+  const effSettings = (inv?: Invoice | null): InvoiceSettings => ({
+    ...settings,
+    ...((inv?.sender_override as Partial<InvoiceSettings>) || {}),
   });
   const [items, setItems] = useState<InvoiceItem[]>([
     { description: '', quantity: 1, unit_price: 0, total: 0 },
