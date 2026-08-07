@@ -37,7 +37,7 @@ export interface Investment {
   createdAt: string;
 }
 
-export type CategoryGroup = 'depense' | 'revenu' | 'business';
+export type CategoryGroup = 'depense' | 'revenu' | 'business' | 'fiscalite';
 
 export interface Category {
   id: string;
