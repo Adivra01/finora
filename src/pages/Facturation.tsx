@@ -174,6 +174,7 @@ export default function Facturation() {
   const resetForm = () => {
     setForm({
       type: 'facture',
+      invoice_number: '',
       client_name: '',
       client_email: '',
       client_address: '',
@@ -184,18 +185,21 @@ export default function Facturation() {
     });
     setItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
     setEditingInvoice(null);
+    setSender({});
   };
 
   const openNew = (type: string) => {
     resetForm();
-    setForm((f) => ({ ...f, type }));
+    setForm((f) => ({ ...f, type, invoice_number: generateNumber(type) }));
     setDialogOpen(true);
   };
 
   const openEdit = async (inv: Invoice) => {
     setEditingInvoice(inv);
+    setSender((inv.sender_override as Partial<InvoiceSettings>) || {});
     setForm({
       type: inv.type,
+      invoice_number: inv.invoice_number,
       client_name: inv.client_name,
       client_email: inv.client_email || '',
       client_address: inv.client_address || '',
@@ -238,7 +242,7 @@ export default function Facturation() {
 
     const invoiceData = {
       user_id: userId,
-      invoice_number: editingInvoice ? editingInvoice.invoice_number : generateNumber(form.type),
+      invoice_number: form.invoice_number.trim() || generateNumber(form.type),
       type: form.type,
       client_name: form.client_name.trim(),
       client_email: form.client_email.trim(),
@@ -251,6 +255,7 @@ export default function Facturation() {
       tax_amount: taxAmount,
       total,
       status: editingInvoice ? editingInvoice.status : 'brouillon',
+      sender_override: Object.keys(sender).length > 0 ? sender : null,
     };
 
     let invoiceId = editingInvoice?.id;
@@ -320,7 +325,7 @@ export default function Facturation() {
   };
 
   const exportPDF = (inv: Invoice, invItems: InvoiceItem[]) => {
-    const html = buildInvoiceHTML(inv, invItems, settings);
+    const html = buildInvoiceHTML(inv, invItems, effSettings(inv));
     const w = window.open('', '_blank');
     if (w) {
       w.document.write(html);
