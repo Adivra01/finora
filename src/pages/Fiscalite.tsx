@@ -1,20 +1,26 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useData } from '@/contexts/DataContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import {
-  AlertTriangle, TrendingUp, Calculator, Landmark, ShieldAlert,
-  FileDown, ChevronLeft, ChevronRight, CheckCircle2, XCircle,
-  BarChart3, Wallet, Receipt, Lock, Unlock, ShoppingCart, Briefcase, Database
-} from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import {
+  AlertTriangle, TrendingUp, Calculator, ShieldAlert, FileDown, ChevronLeft, ChevronRight,
+  CheckCircle2, XCircle, BarChart3, Wallet, Receipt, Lock, Plus, Pencil, Trash2, Tag,
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Link } from 'react-router-dom';
 
 const MONTHS = [
   { key: 'jan', label: 'Jan', full: 'Janvier' },
@@ -38,191 +44,265 @@ const QUARTERS = [
   { label: 'T4', period: 'Octobre – Décembre', months: ['oct', 'nov', 'dec'], payKey: 'paiement_t4', color: 'from-purple-500/10 to-purple-600/5 border-purple-500/20' },
 ] as const;
 
-const YEARS = Array.from({ length: 15 }, (_, i) => 2026 + i); // 2026 to 2040
-
+const YEARS = Array.from({ length: 15 }, (_, i) => 2026 + i);
 const TAUX = 0.06;
 const SEUIL_TVA = 30_000_000;
 
-type FiscalRecord = Record<string, number>;
-type LockRecord = Record<string, boolean>;
-
-const ecomKey = (m: string) => `ecom_${m}`;
-const serviceKey = (m: string) => `service_${m}`;
-const consultKey = (m: string) => `consult_${m}`;
-const caKey = (m: string) => `ca_${m}`;
+const PALETTE = [
+  { bar: 'bg-primary', grad: 'from-primary to-primary/60', text: 'text-primary' },
+  { bar: 'bg-amber-500', grad: 'from-amber-500 to-amber-400/60', text: 'text-amber-600' },
+  { bar: 'bg-violet-500', grad: 'from-violet-500 to-violet-400/60', text: 'text-violet-600' },
+  { bar: 'bg-cyan-500', grad: 'from-cyan-500 to-cyan-400/60', text: 'text-cyan-600' },
+  { bar: 'bg-rose-500', grad: 'from-rose-500 to-rose-400/60', text: 'text-rose-600' },
+  { bar: 'bg-lime-500', grad: 'from-lime-500 to-lime-400/60', text: 'text-lime-600' },
+];
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
 
 const fmtShort = (n: number) => {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
   return n.toString();
+};
+
+interface FiscalEntry {
+  id: string;
+  year: number;
+  month: string;
+  category_id: string | null;
+  category_name: string;
+  label: string;
+  client: string;
+  amount: number;
+  entry_date: string | null;
+}
+
+const emptyForm = {
+  id: '' as string | null,
+  month: MONTHS[new Date().getMonth()].key as string,
+  categoryId: '',
+  label: '',
+  client: '',
+  amount: '',
+  entryDate: '',
 };
 
 export default function Fiscalite() {
   const { userId } = useAuth();
+  const { data: appData } = useData();
   const { toast } = useToast();
   const [year, setYear] = useState(new Date().getFullYear());
-  const [data, setData] = useState<FiscalRecord>({});
+  const [entries, setEntries] = useState<FiscalEntry[]>([]);
+  const [payments, setPayments] = useState<Record<string, number>>({});
+  const [locks, setLocks] = useState<Record<string, boolean>>({});
   const [recordId, setRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [locks, setLocks] = useState<LockRecord>({});
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
 
-  const fetchData = useCallback(async () => {
+  const fiscalCats = useMemo(
+    () => appData.categories.filter(c => c.group === 'fiscalite'),
+    [appData.categories]
+  );
+
+  // ---------- Fetch ----------
+  const fetchAll = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
-    const { data: rows } = await supabase
-      .from('fiscal_data')
-      .select('*')
-      .eq('year', year)
-      .maybeSingle();
+    const [{ data: row }, { data: rows }] = await Promise.all([
+      supabase.from('fiscal_data').select('*').eq('year', year).maybeSingle(),
+      supabase.from('fiscal_entries').select('*').eq('year', year).order('created_at', { ascending: false }),
+    ]);
 
-    if (rows) {
-      setRecordId(rows.id);
-      const rec: FiscalRecord = {};
-      MONTHS.forEach(m => {
-        rec[ecomKey(m.key)] = Number((rows as any)[ecomKey(m.key)]) || 0;
-        rec[serviceKey(m.key)] = Number((rows as any)[serviceKey(m.key)]) || 0;
-        rec[consultKey(m.key)] = Number((rows as any)[consultKey(m.key)]) || 0;
-        rec[caKey(m.key)] = Number((rows as any)[caKey(m.key)]) || 0;
+    if (row) {
+      setRecordId(row.id);
+      const p: Record<string, number> = {};
+      const lk: Record<string, boolean> = {};
+      QUARTERS.forEach((q, i) => {
+        p[q.payKey] = Number((row as any)[q.payKey]) || 0;
+        lk[`locked_t${i + 1}`] = !!(row as any)[`locked_t${i + 1}`];
       });
-      QUARTERS.forEach(q => (rec[q.payKey] = Number((rows as any)[q.payKey]) || 0));
-      setData(rec);
-      const lk: LockRecord = {};
-      QUARTERS.forEach((q, i) => { lk[`locked_t${i+1}`] = !!(rows as any)[`locked_t${i+1}`]; });
+      setPayments(p);
       setLocks(lk);
     } else {
       setRecordId(null);
-      const rec: FiscalRecord = {};
-      MONTHS.forEach(m => {
-        rec[ecomKey(m.key)] = 0;
-        rec[serviceKey(m.key)] = 0;
-        rec[consultKey(m.key)] = 0;
-        rec[caKey(m.key)] = 0;
-      });
-      QUARTERS.forEach(q => (rec[q.payKey] = 0));
-      setData(rec);
+      setPayments({});
       setLocks({});
     }
+
+    setEntries(
+      (rows || []).map((r: any) => ({
+        id: r.id,
+        year: r.year,
+        month: r.month,
+        category_id: r.category_id,
+        category_name: r.category_name,
+        label: r.label || '',
+        client: r.client || '',
+        amount: Number(r.amount) || 0,
+        entry_date: r.entry_date,
+      }))
+    );
     setLoading(false);
   }, [userId, year]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const saveField = useCallback(async (key: string, value: number) => {
-    if (!userId) return;
-    setSaving(true);
-    const updates: any = { [key]: value, updated_at: new Date().toISOString() };
+  // ---------- Helpers ----------
+  const catColor = (name: string) => {
+    const idx = fiscalCats.findIndex(c => c.name === name);
+    return PALETTE[(idx < 0 ? 0 : idx) % PALETTE.length];
+  };
 
-    if (recordId) {
-      await supabase.from('fiscal_data').update(updates as any).eq('id', recordId);
-    } else {
-      const insert: any = { user_id: userId, year, [key]: value };
-      const { data: row } = await supabase.from('fiscal_data').insert(insert).select().single();
-      if (row) setRecordId(row.id);
-    }
-    setSaving(false);
-    toast({ title: '✓ Enregistré', description: `Donnée mise à jour` });
-  }, [userId, recordId, year, toast]);
+  const monthTotal = (month: string) =>
+    entries.filter(e => e.month === month).reduce((s, e) => s + e.amount, 0);
 
-  const lockQuarter = useCallback(async (quarterIndex: number) => {
-    if (!userId || !recordId) return;
-    const lockKey = `locked_t${quarterIndex + 1}`;
-    await supabase.from('fiscal_data').update({ [lockKey]: true, updated_at: new Date().toISOString() } as any).eq('id', recordId);
-    setLocks(prev => ({ ...prev, [lockKey]: true }));
-    toast({ title: '🔒 Trimestre validé', description: `Le ${QUARTERS[quarterIndex].label} est maintenant verrouillé.` });
-  }, [userId, recordId, toast]);
+  const monthCatTotal = (month: string, cat: string) =>
+    entries.filter(e => e.month === month && e.category_name === cat).reduce((s, e) => s + e.amount, 0);
 
-  const isMonthLocked = (monthKey: string): boolean => {
+  const catTotal = (cat: string) =>
+    entries.filter(e => e.category_name === cat).reduce((s, e) => s + e.amount, 0);
+
+  const isMonthLocked = (monthKey: string) => {
     for (let i = 0; i < QUARTERS.length; i++) {
-      if ((QUARTERS[i].months as readonly string[]).includes(monthKey)) {
-        return !!locks[`locked_t${i + 1}`];
-      }
+      if ((QUARTERS[i].months as readonly string[]).includes(monthKey)) return !!locks[`locked_t${i + 1}`];
     }
     return false;
   };
-
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonthIdx = now.getMonth();
-  const isMonthPast = (monthKey: string): boolean => {
-    if (year !== currentYear) return false;
-    const idx = MONTHS.findIndex(m => m.key === monthKey);
-    return idx < currentMonthIdx;
+  const isMonthPast = (monthKey: string) => {
+    if (year !== now.getFullYear()) return false;
+    return MONTHS.findIndex(m => m.key === monthKey) < now.getMonth();
   };
   const isMonthDisabled = (monthKey: string) => isMonthLocked(monthKey) || isMonthPast(monthKey);
 
-  const handleChange = (key: string, raw: string, monthKey?: string) => {
-    const val = Math.max(0, Number(raw) || 0);
-    setData(prev => {
-      const next = { ...prev, [key]: val };
-      if (monthKey) {
-        const eVal = key === ecomKey(monthKey) ? val : (prev[ecomKey(monthKey)] || 0);
-        const sVal = key === serviceKey(monthKey) ? val : (prev[serviceKey(monthKey)] || 0);
-        const cVal = key === consultKey(monthKey) ? val : (prev[consultKey(monthKey)] || 0);
-        next[caKey(monthKey)] = eVal + sVal + cVal;
-      }
-      return next;
-    });
-  };
+  // ---------- Fiscal data (payments / locks / legacy CA sync) ----------
+  const ensureRecord = useCallback(async () => {
+    if (recordId) return recordId;
+    const { data: row } = await supabase
+      .from('fiscal_data')
+      .insert({ user_id: userId!, year })
+      .select()
+      .single();
+    if (row) { setRecordId(row.id); return row.id; }
+    return null;
+  }, [recordId, userId, year]);
 
-  const saveFieldWithCA = useCallback(async (key: string, value: number, monthKey: string) => {
+  const syncMonthCA = useCallback(async (month: string, list: FiscalEntry[]) => {
+    const id = await ensureRecord();
+    if (!id) return;
+    const total = list.filter(e => e.month === month).reduce((s, e) => s + e.amount, 0);
+    await supabase.from('fiscal_data').update({ [`ca_${month}`]: total, updated_at: new Date().toISOString() } as any).eq('id', id);
+  }, [ensureRecord]);
+
+  const savePayment = useCallback(async (key: string, value: number) => {
     if (!userId) return;
     setSaving(true);
-    const eVal = key === ecomKey(monthKey) ? value : (data[ecomKey(monthKey)] || 0);
-    const sVal = key === serviceKey(monthKey) ? value : (data[serviceKey(monthKey)] || 0);
-    const cVal = key === consultKey(monthKey) ? value : (data[consultKey(monthKey)] || 0);
-    const caVal = eVal + sVal + cVal;
-    const updates: any = {
-      [key]: value,
-      [caKey(monthKey)]: caVal,
-      updated_at: new Date().toISOString(),
+    const id = await ensureRecord();
+    if (id) await supabase.from('fiscal_data').update({ [key]: value, updated_at: new Date().toISOString() } as any).eq('id', id);
+    setSaving(false);
+    toast({ title: '✓ Enregistré', description: 'Paiement mis à jour' });
+  }, [userId, ensureRecord, toast]);
+
+  const lockQuarter = useCallback(async (qi: number) => {
+    const id = await ensureRecord();
+    if (!id) return;
+    const lockKey = `locked_t${qi + 1}`;
+    await supabase.from('fiscal_data').update({ [lockKey]: true, updated_at: new Date().toISOString() } as any).eq('id', id);
+    setLocks(prev => ({ ...prev, [lockKey]: true }));
+    toast({ title: '🔒 Trimestre validé', description: `Le ${QUARTERS[qi].label} est maintenant verrouillé.` });
+  }, [ensureRecord, toast]);
+
+  // ---------- Entry CRUD ----------
+  const openNew = (categoryId?: string, month?: string) => {
+    setForm({
+      ...emptyForm,
+      categoryId: categoryId || fiscalCats[0]?.id || '',
+      month: month || MONTHS[Math.min(now.getMonth(), 11)].key,
+    });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (e: FiscalEntry) => {
+    setForm({
+      id: e.id,
+      month: e.month,
+      categoryId: e.category_id || fiscalCats.find(c => c.name === e.category_name)?.id || '',
+      label: e.label,
+      client: e.client,
+      amount: String(e.amount),
+      entryDate: e.entry_date || '',
+    });
+    setDialogOpen(true);
+  };
+
+  const submitEntry = async () => {
+    if (!userId) return;
+    const cat = fiscalCats.find(c => c.id === form.categoryId);
+    if (!cat) { toast({ title: 'Activité requise', description: 'Ajoutez une activité dans Catégories > Fiscalité.', variant: 'destructive' }); return; }
+    const amount = Math.max(0, Number(form.amount) || 0);
+    if (!form.label.trim()) { toast({ title: 'Détail requis', description: 'Indiquez la prestation (ex: site web, maintenance…).', variant: 'destructive' }); return; }
+    if (isMonthDisabled(form.month)) { toast({ title: 'Mois verrouillé', description: 'Ce mois n\'est plus modifiable.', variant: 'destructive' }); return; }
+
+    setSaving(true);
+    const payload = {
+      user_id: userId,
+      year,
+      month: form.month,
+      category_id: cat.id,
+      category_name: cat.name,
+      label: form.label.trim(),
+      client: form.client.trim(),
+      amount,
+      entry_date: form.entryDate || null,
     };
 
-    if (recordId) {
-      await supabase.from('fiscal_data').update(updates as any).eq('id', recordId);
+    let next: FiscalEntry[] = entries;
+    if (form.id) {
+      const { data: row } = await supabase.from('fiscal_entries').update(payload).eq('id', form.id).select().single();
+      if (row) next = entries.map(e => (e.id === form.id ? { ...(row as any), amount: Number(row.amount) } : e));
     } else {
-      const insert: any = { user_id: userId, year, ...updates };
-      const { data: row } = await supabase.from('fiscal_data').insert(insert).select().single();
-      if (row) setRecordId(row.id);
+      const { data: row } = await supabase.from('fiscal_entries').insert(payload).select().single();
+      if (row) next = [{ ...(row as any), amount: Number(row.amount) }, ...entries];
     }
-    setData(prev => ({ ...prev, [caKey(monthKey)]: caVal }));
+    setEntries(next);
+    await syncMonthCA(form.month, next);
     setSaving(false);
-    toast({ title: '✓ Enregistré', description: `Donnée mise à jour` });
-  }, [userId, recordId, year, toast, data]);
+    setDialogOpen(false);
+    toast({ title: '✓ Écriture enregistrée', description: `${cat.name} — ${fmt(amount)}` });
+  };
 
-  // ---- Calculs ----
-  const quarterCA = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[caKey(m)] || 0), 0));
-  const quarterEcom = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[ecomKey(m)] || 0), 0));
-  const quarterService = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[serviceKey(m)] || 0), 0));
-  const quarterConsult = QUARTERS.map(q => q.months.reduce((s, m) => s + (data[consultKey(m)] || 0), 0));
+  const deleteEntry = async (e: FiscalEntry) => {
+    if (isMonthDisabled(e.month)) { toast({ title: 'Mois verrouillé', variant: 'destructive' }); return; }
+    if (!window.confirm(`Supprimer « ${e.label} » (${fmt(e.amount)}) ?`)) return;
+    await supabase.from('fiscal_entries').delete().eq('id', e.id);
+    const next = entries.filter(x => x.id !== e.id);
+    setEntries(next);
+    await syncMonthCA(e.month, next);
+    toast({ title: 'Écriture supprimée' });
+  };
+
+  // ---------- Calculs ----------
+  const quarterCA = QUARTERS.map(q => q.months.reduce((s, m) => s + monthTotal(m), 0));
   const quarterImpot = quarterCA.map(ca => ca * TAUX);
-  const quarterPaid = QUARTERS.map(q => data[q.payKey] || 0);
+  const quarterPaid = QUARTERS.map(q => payments[q.payKey] || 0);
 
   const caAnnuel = quarterCA.reduce((a, b) => a + b, 0);
-  const ecomAnnuel = quarterEcom.reduce((a, b) => a + b, 0);
-  const serviceAnnuel = quarterService.reduce((a, b) => a + b, 0);
-  const consultAnnuel = quarterConsult.reduce((a, b) => a + b, 0);
   const impotAnnuel = caAnnuel * TAUX;
   const totalPaye = quarterPaid.reduce((a, b) => a + b, 0);
   const solde = impotAnnuel - totalPaye;
   const progressPaiement = impotAnnuel > 0 ? Math.min(100, (totalPaye / impotAnnuel) * 100) : 0;
 
-  const monthsFilled = MONTHS.filter(m => (data[caKey(m.key)] || 0) > 0).length;
+  const monthsFilled = MONTHS.filter(m => monthTotal(m.key) > 0).length;
   const moyenne = monthsFilled > 0 ? caAnnuel / monthsFilled : 0;
   const caProjecte = moyenne * 12;
   const impotProjecte = caProjecte * TAUX;
+  const maxMonthCA = Math.max(...MONTHS.map(m => monthTotal(m.key)), 1);
 
-  // Max month CA for chart
-  const maxMonthCA = Math.max(...MONTHS.map(m => data[caKey(m.key)] || 0), 1);
-
-  // ---- Alertes ----
   const alerts: { type: 'destructive' | 'default'; title: string; msg: string }[] = [];
-  if (caAnnuel >= SEUIL_TVA) {
-    alerts.push({ type: 'destructive', title: 'Risque TVA (18%)', msg: `Votre CA annuel (${fmt(caAnnuel)}) dépasse le seuil de ${fmt(SEUIL_TVA)}.` });
-  }
+  if (caAnnuel >= SEUIL_TVA) alerts.push({ type: 'destructive', title: 'Risque TVA (18%)', msg: `Votre CA annuel (${fmt(caAnnuel)}) dépasse le seuil de ${fmt(SEUIL_TVA)}.` });
   QUARTERS.forEach((q, i) => {
     if (i > 0 && quarterCA[i - 1] > 0 && quarterCA[i] > quarterCA[i - 1] * 1.5) {
       alerts.push({ type: 'default', title: `Forte croissance ${q.label}`, msg: `Le CA ${q.label} a augmenté de +50% vs trimestre précédent.` });
@@ -232,86 +312,59 @@ export default function Fiscalite() {
     }
   });
 
-  // ---- Export PDF ----
+  // ---------- PDF ----------
   const exportPDF = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Fiscalité ${year} — FinTrack</title>
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const cats = fiscalCats.map(c => c.name);
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Fiscalité ${year}</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1a1a2e; padding: 40px; background: #fff; }
-  .header { text-align: center; margin-bottom: 32px; border-bottom: 3px solid #3b82f6; padding-bottom: 20px; }
-  .header h1 { font-size: 28px; color: #1a1a2e; margin-bottom: 4px; }
-  .header p { color: #64748b; font-size: 14px; }
-  .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
-  .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
-  .summary-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-  .summary-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; }
-  .summary-card .value.danger { color: #ef4444; }
-  .summary-card .value.success { color: #22c55e; }
-  .section { margin-bottom: 28px; }
-  .section h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1e293b; border-left: 4px solid #3b82f6; padding-left: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { background: #f1f5f9; text-align: left; padding: 10px 12px; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
-  td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
-  tr:nth-child(even) { background: #fafbfc; }
-  .text-right { text-align: right; }
-  .bold { font-weight: 700; }
-  .footer { margin-top: 40px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 16px; }
-  .alert { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 14px; margin-bottom: 8px; font-size: 13px; color: #991b1b; }
-  .alert.warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-  @media print { body { padding: 20px; } }
+ *{margin:0;padding:0;box-sizing:border-box}
+ body{font-family:'Segoe UI',system-ui,sans-serif;color:#1a1a2e;padding:40px;background:#fff}
+ .header{text-align:center;margin-bottom:28px;border-bottom:3px solid #3b82f6;padding-bottom:18px}
+ .header h1{font-size:26px}.header p{color:#64748b;font-size:13px}
+ .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+ .card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center}
+ .card .l{font-size:10px;color:#64748b;text-transform:uppercase}.card .v{font-size:19px;font-weight:700;margin-top:4px}
+ .section{margin-bottom:26px}.section h2{font-size:15px;margin-bottom:10px;border-left:4px solid #3b82f6;padding-left:10px}
+ table{width:100%;border-collapse:collapse;font-size:12px}
+ th{background:#f1f5f9;text-align:left;padding:8px 10px;color:#475569;border-bottom:2px solid #e2e8f0}
+ td{padding:7px 10px;border-bottom:1px solid #f1f5f9}
+ .r{text-align:right}.b{font-weight:700}
+ .footer{margin-top:32px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:14px}
 </style></head><body>
-<div class="header">
-  <h1>📊 Récapitulatif Fiscal ${year}</h1>
-  <p>Régime Simplifié — Bamako — Taux 6% | Généré le ${new Date().toLocaleDateString('fr-FR')}</p>
+<div class="header"><h1>📊 Récapitulatif Fiscal ${year}</h1>
+<p>Régime Simplifié — Bamako — Taux 6% | Généré le ${new Date().toLocaleDateString('fr-FR')}</p></div>
+<div class="grid">
+ <div class="card"><div class="l">CA Annuel</div><div class="v">${fmt(caAnnuel)}</div></div>
+ <div class="card"><div class="l">Impôt Annuel</div><div class="v">${fmt(impotAnnuel)}</div></div>
+ <div class="card"><div class="l">Total Payé</div><div class="v">${fmt(totalPaye)}</div></div>
+ <div class="card"><div class="l">Solde</div><div class="v">${fmt(solde)}</div></div>
 </div>
-
-<div class="summary-grid">
-  <div class="summary-card"><div class="label">CA Annuel</div><div class="value">${fmt(caAnnuel)}</div></div>
-  <div class="summary-card"><div class="label">Impôt Annuel</div><div class="value">${fmt(impotAnnuel)}</div></div>
-  <div class="summary-card"><div class="label">Total Payé</div><div class="value success">${fmt(totalPaye)}</div></div>
-  <div class="summary-card"><div class="label">Solde Restant</div><div class="value ${solde > 0 ? 'danger' : 'success'}">${fmt(solde)}</div></div>
-</div>
-
-${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(a => `<div class="alert ${a.type === 'default' ? 'warning' : ''}">${a.title}: ${a.msg}</div>`).join('')}</div>` : ''}
-
-<div class="section">
-  <h2>Chiffre d'affaires mensuel</h2>
-  <table>
-    <tr><th>Mois</th><th class="text-right">E-commerce</th><th class="text-right">Services</th><th class="text-right">Consultante data</th><th class="text-right">CA Total</th><th class="text-right">Impôt (6%)</th></tr>
-    ${MONTHS.map(m => `<tr><td>${m.full}</td><td class="text-right">${fmt(data[ecomKey(m.key)] || 0)}</td><td class="text-right">${fmt(data[serviceKey(m.key)] || 0)}</td><td class="text-right">${fmt(data[consultKey(m.key)] || 0)}</td><td class="text-right bold">${fmt(data[caKey(m.key)] || 0)}</td><td class="text-right">${fmt((data[caKey(m.key)] || 0) * TAUX)}</td></tr>`).join('')}
-    <tr class="bold" style="background:#e8f0fe"><td>Total</td><td class="text-right">${fmt(ecomAnnuel)}</td><td class="text-right">${fmt(serviceAnnuel)}</td><td class="text-right">${fmt(consultAnnuel)}</td><td class="text-right">${fmt(caAnnuel)}</td><td class="text-right">${fmt(impotAnnuel)}</td></tr>
-  </table>
-</div>
-
-<div class="section">
-  <h2>Détail trimestriel</h2>
-  <table>
-    <tr><th>Trimestre</th><th class="text-right">E-commerce</th><th class="text-right">Services</th><th class="text-right">Consultante data</th><th class="text-right">CA Total</th><th class="text-right">Impôt dû</th><th class="text-right">Payé</th><th class="text-right">Reste</th></tr>
-    ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="text-right">${fmt(quarterEcom[i])}</td><td class="text-right">${fmt(quarterService[i])}</td><td class="text-right">${fmt(quarterConsult[i])}</td><td class="text-right bold">${fmt(quarterCA[i])}</td><td class="text-right">${fmt(quarterImpot[i])}</td><td class="text-right">${fmt(quarterPaid[i])}</td><td class="text-right bold ${quarterImpot[i] - quarterPaid[i] > 0 ? 'style="color:#ef4444"' : ''}">${fmt(Math.max(0, quarterImpot[i] - quarterPaid[i]))}</td></tr>`).join('')}
-  </table>
-</div>
-
-<div class="section">
-  <h2>Projections</h2>
-  <table>
-    <tr><td>Moyenne mensuelle (${monthsFilled} mois)</td><td class="text-right bold">${fmt(moyenne)}</td></tr>
-    <tr><td>CA projeté (12 mois)</td><td class="text-right bold">${fmt(caProjecte)}</td></tr>
-    <tr><td>Impôt projeté</td><td class="text-right bold">${fmt(impotProjecte)}</td></tr>
-  </table>
-</div>
-
+<div class="section"><h2>Chiffre d'affaires mensuel par activité</h2><table>
+<tr><th>Mois</th>${cats.map(c => `<th class="r">${c}</th>`).join('')}<th class="r">CA Total</th><th class="r">Impôt (6%)</th></tr>
+${MONTHS.map(m => `<tr><td>${m.full}</td>${cats.map(c => `<td class="r">${fmt(monthCatTotal(m.key, c))}</td>`).join('')}<td class="r b">${fmt(monthTotal(m.key))}</td><td class="r">${fmt(monthTotal(m.key) * TAUX)}</td></tr>`).join('')}
+<tr class="b" style="background:#e8f0fe"><td>Total</td>${cats.map(c => `<td class="r">${fmt(catTotal(c))}</td>`).join('')}<td class="r">${fmt(caAnnuel)}</td><td class="r">${fmt(impotAnnuel)}</td></tr>
+</table></div>
+<div class="section"><h2>Détail des écritures</h2><table>
+<tr><th>Mois</th><th>Activité</th><th>Détail</th><th>Client</th><th class="r">Montant</th></tr>
+${MONTHS.flatMap(m => entries.filter(e => e.month === m.key).map(e =>
+  `<tr><td>${m.full}</td><td>${e.category_name}</td><td>${e.label}</td><td>${e.client || '—'}</td><td class="r b">${fmt(e.amount)}</td></tr>`)).join('') || '<tr><td colspan="5">Aucune écriture</td></tr>'}
+</table></div>
+<div class="section"><h2>Détail trimestriel</h2><table>
+<tr><th>Trimestre</th><th class="r">CA</th><th class="r">Impôt dû</th><th class="r">Payé</th><th class="r">Reste</th></tr>
+${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">${fmt(quarterCA[i])}</td><td class="r">${fmt(quarterImpot[i])}</td><td class="r">${fmt(quarterPaid[i])}</td><td class="r b">${fmt(Math.max(0, quarterImpot[i] - quarterPaid[i]))}</td></tr>`).join('')}
+</table></div>
+<div class="section"><h2>Projections</h2><table>
+<tr><td>Moyenne mensuelle (${monthsFilled} mois)</td><td class="r b">${fmt(moyenne)}</td></tr>
+<tr><td>CA projeté (12 mois)</td><td class="r b">${fmt(caProjecte)}</td></tr>
+<tr><td>Impôt projeté</td><td class="r b">${fmt(impotProjecte)}</td></tr>
+</table></div>
 <div class="footer">FinTrack — Document généré automatiquement. Ne constitue pas un document fiscal officiel.</div>
 </body></html>`;
-
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.onload = () => {
-      printWindow.print();
-    };
+    w.document.write(html);
+    w.document.close();
+    w.onload = () => w.print();
   };
 
   if (loading) return (
@@ -320,54 +373,109 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
     </div>
   );
 
+  const renderEntryRow = (e: FiscalEntry, showCat = true) => (
+    <div key={e.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border border-border/50">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-foreground truncate">{e.label}</span>
+          {showCat && <Badge variant="secondary" className="text-[10px]">{e.category_name}</Badge>}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {e.client ? `${e.client} · ` : ''}{e.entry_date ? new Date(e.entry_date).toLocaleDateString('fr-FR') : MONTHS.find(m => m.key === e.month)?.full}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <span className={`text-sm font-bold ${catColor(e.category_name).text}`}>{fmt(e.amount)}</span>
+        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={isMonthDisabled(e.month)} onClick={() => openEdit(e)}>
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" disabled={isMonthDisabled(e.month)} onClick={() => deleteEntry(e)}>
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  const monthsAccordion = (catName?: string) => (
+    <Accordion type="multiple" className="w-full">
+      {MONTHS.map(m => {
+        const list = entries.filter(e => e.month === m.key && (!catName || e.category_name === catName));
+        const total = list.reduce((s, e) => s + e.amount, 0);
+        const disabled = isMonthDisabled(m.key);
+        return (
+          <AccordionItem key={m.key} value={m.key}>
+            <AccordionTrigger className="hover:no-underline">
+              <div className="flex items-center justify-between w-full pr-3">
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  {m.full}
+                  {disabled && <Lock className="w-3 h-3 text-muted-foreground" />}
+                  <span className="text-xs text-muted-foreground">({list.length})</span>
+                </span>
+                <span className="text-sm font-bold">{fmt(total)}</span>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="space-y-2">
+              {list.length === 0 && <p className="text-xs text-muted-foreground py-2">Aucune écriture pour ce mois.</p>}
+              {list.map(e => renderEntryRow(e, !catName))}
+              {!disabled && (
+                <Button variant="outline" size="sm" className="gap-1.5 mt-1"
+                  onClick={() => openNew(catName ? fiscalCats.find(c => c.name === catName)?.id : undefined, m.key)}>
+                  <Plus className="w-3.5 h-3.5" /> Ajouter une écriture
+                </Button>
+              )}
+            </AccordionContent>
+          </AccordionItem>
+        );
+      })}
+    </Accordion>
+  );
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10">
-              <Receipt className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Fiscalité</h1>
-              <p className="text-sm text-muted-foreground">Régime simplifié — Bamako — Taux 6%</p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10">
+            <Receipt className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Fiscalité</h1>
+            <p className="text-sm text-muted-foreground">Régime simplifié — Bamako — Taux 6%</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {saving && <Badge variant="secondary" className="animate-pulse">Sauvegarde...</Badge>}
           <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
-            <Button
-              variant="ghost" size="icon" className="h-8 w-8"
-              onClick={() => setYear(y => Math.max(2026, y - 1))}
-              disabled={year <= 2026}
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setYear(y => Math.max(2026, y - 1))} disabled={year <= 2026}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <select
-              value={year}
-              onChange={e => setYear(Number(e.target.value))}
-              className="rounded-md bg-transparent px-3 py-1.5 text-sm font-semibold text-foreground border-0 focus:outline-none cursor-pointer"
-            >
-              {YEARS.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
+            <select value={year} onChange={e => setYear(Number(e.target.value))}
+              className="rounded-md bg-transparent px-3 py-1.5 text-sm font-semibold text-foreground border-0 focus:outline-none cursor-pointer">
+              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-            <Button
-              variant="ghost" size="icon" className="h-8 w-8"
-              onClick={() => setYear(y => Math.min(2040, y + 1))}
-              disabled={year >= 2040}
-            >
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setYear(y => Math.min(2040, y + 1))} disabled={year >= 2040}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
+          <Button onClick={() => openNew()} size="sm" className="gap-2" disabled={fiscalCats.length === 0}>
+            <Plus className="w-4 h-4" /> Nouvelle écriture
+          </Button>
           <Button onClick={exportPDF} variant="outline" size="sm" className="gap-2">
-            <FileDown className="w-4 h-4" />
-            Export PDF
+            <FileDown className="w-4 h-4" /> Export PDF
           </Button>
         </div>
       </div>
+
+      {fiscalCats.length === 0 && (
+        <Alert>
+          <Tag className="h-4 w-4" />
+          <AlertTitle>Aucune activité fiscale</AlertTitle>
+          <AlertDescription className="text-sm">
+            Ajoutez vos activités (E-commerce, Prestation de service, Consultante data…) dans{' '}
+            <Link to="/categories" className="underline font-medium">Catégories → Fiscalité</Link>.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Alertes */}
       {alerts.length > 0 && (
@@ -382,50 +490,41 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
         </div>
       )}
 
-      {/* KPI Cards */}
+      {/* KPI */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
           <CardContent className="p-5 relative">
             <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 rounded-lg bg-blue-500/10">
-                <TrendingUp className="w-4 h-4 text-blue-600" />
-              </div>
+              <div className="p-1.5 rounded-lg bg-blue-500/10"><TrendingUp className="w-4 h-4 text-blue-600" /></div>
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CA Annuel</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{fmtShort(caAnnuel)}</p>
             <p className="text-xs text-muted-foreground mt-1">{fmt(caAnnuel)}</p>
           </CardContent>
         </Card>
-
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
           <CardContent className="p-5 relative">
             <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 rounded-lg bg-amber-500/10">
-                <Calculator className="w-4 h-4 text-amber-600" />
-              </div>
+              <div className="p-1.5 rounded-lg bg-amber-500/10"><Calculator className="w-4 h-4 text-amber-600" /></div>
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Impôt (6%)</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{fmtShort(impotAnnuel)}</p>
             <p className="text-xs text-muted-foreground mt-1">{fmt(impotAnnuel)}</p>
           </CardContent>
         </Card>
-
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
           <CardContent className="p-5 relative">
             <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10">
-                <Wallet className="w-4 h-4 text-emerald-600" />
-              </div>
+              <div className="p-1.5 rounded-lg bg-emerald-500/10"><Wallet className="w-4 h-4 text-emerald-600" /></div>
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Payé</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{fmtShort(totalPaye)}</p>
             <p className="text-xs text-muted-foreground mt-1">{fmt(totalPaye)}</p>
           </CardContent>
         </Card>
-
         <Card className="relative overflow-hidden">
           <div className={`absolute inset-0 bg-gradient-to-br ${solde > 0 ? 'from-red-500/5' : 'from-emerald-500/5'} to-transparent`} />
           <CardContent className="p-5 relative">
@@ -441,7 +540,7 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
         </Card>
       </div>
 
-      {/* Progression globale */}
+      {/* Progression */}
       <Card>
         <CardContent className="p-5">
           <div className="flex items-center justify-between mb-3">
@@ -456,169 +555,63 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
         </CardContent>
       </Card>
 
-      {/* Mini chart CA mensuel */}
+      {/* Chart + écritures */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-primary" />
-            Chiffre d'affaires mensuel
+            Chiffre d'affaires mensuel détaillé
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Visual bars */}
           <div className="flex items-end gap-1.5 h-32 mb-4 px-1">
             {MONTHS.map(m => {
-              const eVal = data[ecomKey(m.key)] || 0;
-              const sVal = data[serviceKey(m.key)] || 0;
-              const cVal = data[consultKey(m.key)] || 0;
-              const val = eVal + sVal + cVal;
-              const height = maxMonthCA > 0 ? Math.max(4, (val / maxMonthCA) * 100) : 4;
+              const val = monthTotal(m.key);
+              const height = Math.max(4, (val / maxMonthCA) * 100);
               return (
                 <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-muted-foreground font-medium">
-                    {val > 0 ? fmtShort(val) : ''}
-                  </span>
-                  <div
-                    className="w-full flex flex-col-reverse rounded-t-md overflow-hidden"
-                    style={{ height: `${height}%`, minHeight: '4px' }}
-                  >
-                    {eVal > 0 && (
-                      <div
-                        className="w-full bg-gradient-to-t from-primary to-primary/60"
-                        style={{ height: val > 0 ? `${(eVal / val) * 100}%` : '0', minHeight: '2px' }}
-                      />
-                    )}
-                    {sVal > 0 && (
-                      <div
-                        className="w-full bg-gradient-to-t from-amber-500 to-amber-400/60"
-                        style={{ height: val > 0 ? `${(sVal / val) * 100}%` : '0', minHeight: '2px' }}
-                      />
-                    )}
-                    {cVal > 0 && (
-                      <div
-                        className="w-full bg-gradient-to-t from-violet-500 to-violet-400/60"
-                        style={{ height: val > 0 ? `${(cVal / val) * 100}%` : '0', minHeight: '2px' }}
-                      />
-                    )}
+                  <span className="text-[10px] text-muted-foreground font-medium">{val > 0 ? fmtShort(val) : ''}</span>
+                  <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden" style={{ height: `${height}%`, minHeight: '4px' }}>
+                    {fiscalCats.map((c, i) => {
+                      const v = monthCatTotal(m.key, c.name);
+                      if (v <= 0) return null;
+                      return (
+                        <div key={c.id} className={`w-full bg-gradient-to-t ${PALETTE[i % PALETTE.length].grad}`}
+                          style={{ height: val > 0 ? `${(v / val) * 100}%` : '0', minHeight: '2px' }} />
+                      );
+                    })}
                   </div>
                   <span className="text-[10px] text-muted-foreground">{m.label}</span>
                 </div>
               );
             })}
           </div>
-          <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-primary" /> E-commerce</div>
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-amber-500" /> Services</div>
-            <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm bg-violet-500" /> Consultante data</div>
+          <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground flex-wrap">
+            {fiscalCats.map((c, i) => (
+              <div key={c.id} className="flex items-center gap-1.5">
+                <div className={`w-3 h-3 rounded-sm ${PALETTE[i % PALETTE.length].bar}`} /> {c.name}
+              </div>
+            ))}
           </div>
           <Separator className="mb-4" />
-          {/* Input grid */}
-          <Tabs defaultValue="ecom" className="w-full">
-            <TabsList className="mb-4">
-              <TabsTrigger value="ecom" className="gap-1.5">
-                <ShoppingCart className="w-3.5 h-3.5" /> E-commerce
-              </TabsTrigger>
-              <TabsTrigger value="service" className="gap-1.5">
-                <Briefcase className="w-3.5 h-3.5" /> Prestation de service
-              </TabsTrigger>
-              <TabsTrigger value="consult" className="gap-1.5">
-                <Database className="w-3.5 h-3.5" /> Consultante data
-              </TabsTrigger>
-              <TabsTrigger value="total" className="gap-1.5">
-                <Calculator className="w-3.5 h-3.5" /> Total combiné
-              </TabsTrigger>
+
+          <Tabs defaultValue="all" className="w-full">
+            <TabsList className="mb-4 flex-wrap h-auto">
+              <TabsTrigger value="all" className="gap-1.5"><Calculator className="w-3.5 h-3.5" /> Toutes activités</TabsTrigger>
+              {fiscalCats.map(c => (
+                <TabsTrigger key={c.id} value={c.id} className="gap-1.5"><Tag className="w-3.5 h-3.5" /> {c.name}</TabsTrigger>
+              ))}
             </TabsList>
-            <TabsContent value="ecom">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {MONTHS.map(m => (
-                  <div key={m.key}>
-                    <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={data[ecomKey(m.key)] || ''}
-                      placeholder="0"
-                      onChange={e => handleChange(ecomKey(m.key), e.target.value, m.key)}
-                      onBlur={() => saveFieldWithCA(ecomKey(m.key), data[ecomKey(m.key)] || 0, m.key)}
-                      className="mt-1 text-sm"
-                      disabled={isMonthDisabled(m.key)}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 text-right text-sm font-semibold text-foreground">
-                Total E-commerce : {fmt(ecomAnnuel)}
-              </div>
+            <TabsContent value="all">
+              {monthsAccordion()}
+              <div className="mt-3 text-right text-sm font-semibold text-foreground">Total {year} : {fmt(caAnnuel)}</div>
             </TabsContent>
-            <TabsContent value="service">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {MONTHS.map(m => (
-                  <div key={m.key}>
-                    <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={data[serviceKey(m.key)] || ''}
-                      placeholder="0"
-                      onChange={e => handleChange(serviceKey(m.key), e.target.value, m.key)}
-                      onBlur={() => saveFieldWithCA(serviceKey(m.key), data[serviceKey(m.key)] || 0, m.key)}
-                      className="mt-1 text-sm"
-                      disabled={isMonthDisabled(m.key)}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 text-right text-sm font-semibold text-foreground">
-                Total Services : {fmt(serviceAnnuel)}
-              </div>
-            </TabsContent>
-            <TabsContent value="consult">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {MONTHS.map(m => (
-                  <div key={m.key}>
-                    <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={data[consultKey(m.key)] || ''}
-                      placeholder="0"
-                      onChange={e => handleChange(consultKey(m.key), e.target.value, m.key)}
-                      onBlur={() => saveFieldWithCA(consultKey(m.key), data[consultKey(m.key)] || 0, m.key)}
-                      className="mt-1 text-sm"
-                      disabled={isMonthDisabled(m.key)}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 text-right text-sm font-semibold text-foreground">
-                Total Consultante data : {fmt(consultAnnuel)}
-              </div>
-            </TabsContent>
-            <TabsContent value="total">
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                {MONTHS.map(m => {
-                  const total = (data[ecomKey(m.key)] || 0) + (data[serviceKey(m.key)] || 0) + (data[consultKey(m.key)] || 0);
-                  return (
-                    <div key={m.key}>
-                      <label className="text-xs font-medium text-muted-foreground">{m.full}</label>
-                      <div className="mt-1 text-sm p-2 rounded-md bg-muted/50 border border-border font-semibold text-foreground">
-                        {fmt(total)}
-                      </div>
-                      <div className="flex gap-1 mt-0.5">
-                        <span className="text-[10px] text-primary">{fmtShort(data[ecomKey(m.key)] || 0)}</span>
-                        <span className="text-[10px] text-muted-foreground">+</span>
-                        <span className="text-[10px] text-amber-600">{fmtShort(data[serviceKey(m.key)] || 0)}</span>
-                        <span className="text-[10px] text-muted-foreground">+</span>
-                        <span className="text-[10px] text-violet-600">{fmtShort(data[consultKey(m.key)] || 0)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-3 text-right text-sm font-semibold text-foreground">
-                Total combiné : {fmt(caAnnuel)}
-              </div>
-            </TabsContent>
+            {fiscalCats.map(c => (
+              <TabsContent key={c.id} value={c.id}>
+                {monthsAccordion(c.name)}
+                <div className="mt-3 text-right text-sm font-semibold text-foreground">Total {c.name} : {fmt(catTotal(c.name))}</div>
+              </TabsContent>
+            ))}
           </Tabs>
         </CardContent>
       </Card>
@@ -630,7 +623,6 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
           const paid = quarterImpot[i] > 0 && quarterPaid[i] >= quarterImpot[i];
           const progress = quarterImpot[i] > 0 ? Math.min(100, (quarterPaid[i] / quarterImpot[i]) * 100) : 0;
           const isLocked = !!locks[`locked_t${i + 1}`];
-
           return (
             <Card key={q.label} className={`relative overflow-hidden border bg-gradient-to-br ${q.color}`}>
               <CardHeader className="pb-3">
@@ -650,10 +642,12 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
                   <div className="p-3 rounded-lg bg-card/80">
                     <p className="text-xs text-muted-foreground">CA</p>
                     <p className="text-lg font-bold text-foreground">{fmt(quarterCA[i])}</p>
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-[10px] text-primary">E-com: {fmtShort(quarterEcom[i])}</span>
-                      <span className="text-[10px] text-amber-600">Serv: {fmtShort(quarterService[i])}</span>
-                      <span className="text-[10px] text-violet-600">Consult: {fmtShort(quarterConsult[i])}</span>
+                    <div className="flex gap-2 mt-1 flex-wrap">
+                      {fiscalCats.map((c, ci) => {
+                        const v = q.months.reduce((s, m) => s + monthCatTotal(m, c.name), 0);
+                        if (v <= 0) return null;
+                        return <span key={c.id} className={`text-[10px] ${PALETTE[ci % PALETTE.length].text}`}>{c.name}: {fmtShort(v)}</span>;
+                      })}
                     </div>
                   </div>
                   <div className="p-3 rounded-lg bg-card/80">
@@ -664,16 +658,10 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
 
                 <div>
                   <label className="text-xs font-medium text-muted-foreground">Montant payé</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={data[q.payKey] || ''}
-                    placeholder="0"
-                    onChange={e => handleChange(q.payKey, e.target.value)}
-                    onBlur={() => saveField(q.payKey, data[q.payKey] || 0)}
-                    className="mt-1"
-                    disabled={isLocked}
-                  />
+                  <Input type="number" min={0} value={payments[q.payKey] || ''} placeholder="0"
+                    onChange={e => setPayments(prev => ({ ...prev, [q.payKey]: Math.max(0, Number(e.target.value) || 0) }))}
+                    onBlur={() => savePayment(q.payKey, payments[q.payKey] || 0)}
+                    className="mt-1" disabled={isLocked} />
                 </div>
 
                 <div>
@@ -686,27 +674,17 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
 
                 <div className="flex justify-between items-center pt-2 border-t border-border/50">
                   <span className="text-sm text-muted-foreground">Reste à payer</span>
-                  <span className={`text-lg font-bold ${reste > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
-                    {fmt(reste)}
-                  </span>
+                  <span className={`text-lg font-bold ${reste > 0 ? 'text-destructive' : 'text-emerald-600'}`}>{fmt(reste)}</span>
                 </div>
 
                 {!isLocked && quarterCA[i] > 0 && (
-                  <Button
-                    variant={paid ? 'default' : 'outline'}
-                    size="sm"
-                    className="w-full gap-2 mt-2"
+                  <Button variant={paid ? 'default' : 'outline'} size="sm" className="w-full gap-2 mt-2"
                     onClick={() => {
-                      if (window.confirm(`Êtes-vous sûr de vouloir valider le ${q.label} ? Les données ne seront plus modifiables.`)) {
-                        lockQuarter(i);
-                      }
-                    }}
-                  >
-                    <Lock className="w-3.5 h-3.5" />
-                    Valider & Verrouiller {q.label}
+                      if (window.confirm(`Êtes-vous sûr de vouloir valider le ${q.label} ? Les données ne seront plus modifiables.`)) lockQuarter(i);
+                    }}>
+                    <Lock className="w-3.5 h-3.5" /> Valider & Verrouiller {q.label}
                   </Button>
                 )}
-
                 {isLocked && (
                   <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                     <Lock className="w-4 h-4 text-emerald-600" />
@@ -720,34 +698,85 @@ ${alerts.length > 0 ? `<div class="section"><h2>⚠️ Alertes</h2>${alerts.map(
       </div>
 
       {/* Projections */}
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            Projections annuelles
-          </CardTitle>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Projections {year}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl bg-card border border-border">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Moyenne mensuelle</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{fmt(moyenne)}</p>
-              <p className="text-xs text-muted-foreground mt-1">sur {monthsFilled} mois renseignés</p>
-            </div>
-            <div className="p-4 rounded-xl bg-card border border-border">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CA projeté (12 mois)</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{fmt(caProjecte)}</p>
-              {caProjecte >= SEUIL_TVA && (
-                <p className="text-xs text-destructive mt-1 font-medium">⚠ Dépasse le seuil TVA</p>
-              )}
-            </div>
-            <div className="p-4 rounded-xl bg-card border border-border">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Impôt projeté</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{fmt(impotProjecte)}</p>
-            </div>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-3 rounded-lg bg-muted/40">
+            <p className="text-xs text-muted-foreground">Moyenne mensuelle ({monthsFilled} mois)</p>
+            <p className="text-lg font-bold text-foreground">{fmt(moyenne)}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-muted/40">
+            <p className="text-xs text-muted-foreground">CA projeté (12 mois)</p>
+            <p className="text-lg font-bold text-foreground">{fmt(caProjecte)}</p>
+          </div>
+          <div className="p-3 rounded-lg bg-muted/40">
+            <p className="text-xs text-muted-foreground">Impôt projeté</p>
+            <p className="text-lg font-bold text-foreground">{fmt(impotProjecte)}</p>
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog écriture */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{form.id ? 'Modifier l\'écriture' : 'Nouvelle écriture fiscale'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Activité</Label>
+                <Select value={form.categoryId} onValueChange={v => setForm(f => ({ ...f, categoryId: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue placeholder="Choisir" /></SelectTrigger>
+                  <SelectContent>
+                    {fiscalCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Mois</Label>
+                <Select value={form.month} onValueChange={v => setForm(f => ({ ...f, month: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MONTHS.map(m => (
+                      <SelectItem key={m.key} value={m.key} disabled={isMonthDisabled(m.key)}>{m.full}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Détail de la prestation / vente</Label>
+              <Textarea value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
+                placeholder="Ex: Création site web vitrine, Maintenance mensuelle, Vente lot de produits…"
+                className="mt-1" rows={2} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Montant (XOF)</Label>
+                <Input type="number" min={0} value={form.amount} placeholder="150000"
+                  onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Date (optionnel)</Label>
+                <Input type="date" value={form.entryDate}
+                  onChange={e => setForm(f => ({ ...f, entryDate: e.target.value }))} className="mt-1" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Client (optionnel)</Label>
+              <Input value={form.client} onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
+                placeholder="Nom du client" className="mt-1" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
+            <Button onClick={submitEntry} disabled={saving}>{form.id ? 'Enregistrer' : 'Ajouter'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
