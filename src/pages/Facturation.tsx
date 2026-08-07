@@ -521,6 +521,53 @@ export default function Facturation() {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Numéro du document */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-foreground">
+                  N° du document (modifiable)
+                </label>
+                <Input
+                  value={form.invoice_number}
+                  onChange={(e) => setForm({ ...form, invoice_number: e.target.value })}
+                  placeholder="FAC-202601-0001"
+                />
+              </div>
+            </div>
+
+            {/* Émetteur (expéditeur) */}
+            <div className="rounded-lg border border-border p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground">Émetteur de la facture</p>
+                <Button variant="ghost" size="sm" onClick={() => setSender({})}>
+                  Réinitialiser (valeurs par défaut)
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {([
+                  ['senderName', 'Nom / entreprise'],
+                  ['senderPhone', 'Téléphone'],
+                  ['senderEmail', 'Email'],
+                  ['senderAddress', 'Adresse'],
+                  ['senderCity', 'Ville'],
+                  ['paymentLabel', 'Moyen de paiement'],
+                  ['paymentAccountLabel', 'Libellé du compte'],
+                  ['paymentAccount', 'N° de compte'],
+                  ['signatureLabel', 'Mention signature'],
+                  ['currency', 'Devise'],
+                ] as [keyof InvoiceSettings, string][]).map(([key, label]) => (
+                  <div key={key}>
+                    <label className="text-xs text-muted-foreground">{label}</label>
+                    <Input
+                      value={sender[key] ?? settings[key] ?? ''}
+                      onChange={(e) => setSender({ ...sender, [key]: e.target.value })}
+                      placeholder={settings[key] || ''}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {/* Client info */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
