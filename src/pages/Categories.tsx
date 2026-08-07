@@ -1,24 +1,28 @@
 import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { Plus, Trash2, Tag } from 'lucide-react';
+import { Plus, Trash2, Tag, Pencil, Check, X } from 'lucide-react';
 import type { CategoryGroup } from '@/lib/types';
 
 const groupLabels: Record<CategoryGroup, string> = {
   depense: 'Dépenses',
   revenu: 'Revenus',
   business: 'Business',
+  fiscalite: 'Fiscalité (activités déclarées)',
 };
 
 const groupColors: Record<CategoryGroup, string> = {
   depense: 'bg-destructive/10 text-destructive',
   revenu: 'bg-success/10 text-success',
   business: 'bg-info/10 text-info',
+  fiscalite: 'bg-primary/10 text-primary',
 };
 
 const Categories = () => {
-  const { data, addCategory, deleteCategory } = useData();
+  const { data, addCategory, updateCategory, deleteCategory } = useData();
   const [name, setName] = useState('');
   const [group, setGroup] = useState<CategoryGroup>('depense');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +31,7 @@ const Categories = () => {
     setName('');
   };
 
-  const groups: CategoryGroup[] = ['depense', 'revenu', 'business'];
+  const groups: CategoryGroup[] = ['depense', 'revenu', 'business', 'fiscalite'];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -51,7 +55,7 @@ const Categories = () => {
         </div>
       </form>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
         {groups.map(g => (
           <div key={g} className="glass-card p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -61,13 +65,47 @@ const Categories = () => {
             </div>
             <div className="space-y-2">
               {data.categories.filter(c => c.group === g).map(c => (
-                <div key={c.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-secondary/50">
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${groupColors[g]}`}>
-                    {c.name}
-                  </span>
-                  <button onClick={() => deleteCategory(c.id)} className="p-1 rounded hover:bg-destructive/10 transition text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                <div key={c.id} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-secondary/50">
+                  {editingId === c.id ? (
+                    <>
+                      <input
+                        autoFocus
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && editName.trim()) { updateCategory(c.id, editName.trim()); setEditingId(null); }
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        className="flex-1 h-7 px-2 rounded bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                      <button
+                        onClick={() => { if (editName.trim()) { updateCategory(c.id, editName.trim()); setEditingId(null); } }}
+                        className="p-1 rounded hover:bg-primary/10 text-primary"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="p-1 rounded hover:bg-muted text-muted-foreground">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${groupColors[g]}`}>
+                        {c.name}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => { setEditingId(c.id); setEditName(c.name); }}
+                          className="p-1 rounded hover:bg-primary/10 transition text-muted-foreground hover:text-primary"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => deleteCategory(c.id)} className="p-1 rounded hover:bg-destructive/10 transition text-muted-foreground hover:text-destructive">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
               {data.categories.filter(c => c.group === g).length === 0 && (

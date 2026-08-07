@@ -257,6 +257,59 @@ export type Database = {
         }
         Relationships: []
       }
+      fiscal_entries: {
+        Row: {
+          amount: number
+          category_id: string | null
+          category_name: string
+          client: string
+          created_at: string
+          entry_date: string | null
+          id: string
+          label: string
+          month: string
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          amount?: number
+          category_id?: string | null
+          category_name: string
+          client?: string
+          created_at?: string
+          entry_date?: string | null
+          id?: string
+          label?: string
+          month: string
+          updated_at?: string
+          user_id: string
+          year?: number
+        }
+        Update: {
+          amount?: number
+          category_id?: string | null
+          category_name?: string
+          client?: string
+          created_at?: string
+          entry_date?: string | null
+          id?: string
+          label?: string
+          month?: string
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_entries_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       investments: {
         Row: {
           amount: number

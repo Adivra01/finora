@@ -26,6 +26,7 @@ interface DataContextType {
   updateInvestment: (id: string, i: Partial<Investment>) => Promise<void>;
   deleteInvestment: (id: string) => Promise<void>;
   addCategory: (c: Omit<Category, 'id'>) => Promise<void>;
+  updateCategory: (id: string, name: string) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   addInvestmentType: (type: string) => Promise<void>;
   deleteInvestmentType: (type: string) => Promise<void>;
@@ -298,6 +299,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setCategories(prev => prev.filter(c => c.id !== id));
   }, []);
 
+  const updateCategory = useCallback(async (id: string, name: string) => {
+    await supabase.from('categories').update({ name }).eq('id', id);
+    setCategories(prev => prev.map(c => (c.id === id ? { ...c, name } : c)));
+  }, []);
+
   // --- Investment Types (local only) ---
   const addInvestmentType = useCallback(async (typeName: string) => {
     setInvestmentTypes(prev => [...prev, typeName]);
@@ -323,7 +329,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addTransaction, updateTransaction, deleteTransaction,
       addPayable, updatePayable, deletePayable, addPayment, updatePayment, deletePayment,
       addInvestment, updateInvestment, deleteInvestment,
-      addCategory, deleteCategory,
+      addCategory, updateCategory, deleteCategory,
       addInvestmentType, deleteInvestmentType,
       totalRevenus, totalDepenses, totalAPayer, solde, exportData,
       refresh: fetchAll,
