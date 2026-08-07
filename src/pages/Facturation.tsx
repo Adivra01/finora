@@ -777,7 +777,7 @@ export default function Facturation() {
                     Prévisualisation du document (avant téléchargement)
                   </p>
                   <InvoicePreview
-                    settings={settings}
+                    settings={effSettings(viewingInvoice)}
                     invoice={{
                       invoice_number: viewingInvoice.invoice_number,
                       type: viewingInvoice.type,
