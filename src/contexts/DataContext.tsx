@@ -329,7 +329,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addTransaction, updateTransaction, deleteTransaction,
       addPayable, updatePayable, deletePayable, addPayment, updatePayment, deletePayment,
       addInvestment, updateInvestment, deleteInvestment,
-      addCategory, deleteCategory,
+      addCategory, updateCategory, deleteCategory,
       addInvestmentType, deleteInvestmentType,
       totalRevenus, totalDepenses, totalAPayer, solde, exportData,
       refresh: fetchAll,
