@@ -37,8 +37,10 @@ export const longDate = (iso: string, city: string) => {
 };
 
 const shortNumber = (n: string) => {
-  const m = n.match(/(\d+)\s*$/);
-  return m ? m[1].slice(-2).padStart(2, '0') : n;
+  // Auto-generated numbers (FAC-YYYYMM-0001) are shortened like the model (N°01).
+  const auto = n.match(/^(?:FAC|DEV)-\d{6}-(\d+)$/);
+  if (auto) return auto[1].slice(-2).padStart(2, '0');
+  return n;
 };
 
 const esc = (s: string) =>

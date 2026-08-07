@@ -339,6 +339,7 @@ export type Database = {
           invoice_number: string
           issue_date: string
           notes: string | null
+          sender_override: Json | null
           status: string
           subtotal: number
           tax_amount: number
@@ -358,6 +359,7 @@ export type Database = {
           invoice_number: string
           issue_date?: string
           notes?: string | null
+          sender_override?: Json | null
           status?: string
           subtotal?: number
           tax_amount?: number
@@ -377,6 +379,7 @@ export type Database = {
           invoice_number?: string
           issue_date?: string
           notes?: string | null
+          sender_override?: Json | null
           status?: string
           subtotal?: number
           tax_amount?: number
