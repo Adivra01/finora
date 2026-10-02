@@ -367,7 +367,7 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
               {!disabled && (
                 <Button variant="outline" size="sm" className="gap-1.5 mt-1"
                   onClick={() => openNew(catName ? fiscalCats.find(c => c.name === catName)?.id : undefined, m.key)}>
-                  <Plus className="w-3.5 h-3.5" /> Ajouter une écriture
+                  <Plus className="w-3.5 h-3.5" /> Ajouter via Transactions
                 </Button>
               )}
             </AccordionContent>
