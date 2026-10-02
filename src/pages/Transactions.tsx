@@ -82,7 +82,7 @@ const Transactions = () => {
             <select value={category} onChange={e => setCategory(e.target.value)}
               className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50">
               <option value="">Sélectionner</option>
-              {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              {categories.map(c => <option key={c.id} value={c.name}>{c.group === 'fiscalite' ? `🧾 ${c.name} (fiscalité)` : c.name}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
