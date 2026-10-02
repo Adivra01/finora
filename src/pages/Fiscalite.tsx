@@ -20,7 +20,7 @@ import {
   CheckCircle2, XCircle, BarChart3, Wallet, Receipt, Lock, Plus, Pencil, Trash2, Tag,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const MONTHS = [
   { key: 'jan', label: 'Jan', full: 'Janvier' },
@@ -90,17 +90,15 @@ const emptyForm = {
 
 export default function Fiscalite() {
   const { userId } = useAuth();
-  const { data: appData } = useData();
+  const { data: appData, deleteTransaction } = useData();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [year, setYear] = useState(new Date().getFullYear());
-  const [entries, setEntries] = useState<FiscalEntry[]>([]);
   const [payments, setPayments] = useState<Record<string, number>>({});
   const [locks, setLocks] = useState<Record<string, boolean>>({});
   const [recordId, setRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
 
   const fiscalCats = useMemo(
     () => appData.categories.filter(c => c.group === 'fiscalite'),
@@ -108,13 +106,27 @@ export default function Fiscalite() {
   );
 
   // ---------- Fetch ----------
+  const entries: FiscalEntry[] = useMemo(() => {
+    const names = new Set(fiscalCats.map(c => c.name));
+    return appData.transactions
+      .filter(t => t.type === 'revenu' && names.has(t.category) && t.date?.startsWith(String(year)))
+      .map(t => {
+        const mi = Math.max(0, Math.min(11, Number(t.date.slice(5, 7)) - 1));
+        const [label, client] = (t.description || t.category).split(' — ');
+        return {
+          id: t.id, year, month: MONTHS[mi].key,
+          category_id: fiscalCats.find(c => c.name === t.category)?.id || null,
+          category_name: t.category, label: label || t.category, client: client || '',
+          amount: t.amount, entry_date: t.date,
+        };
+      })
+      .sort((a, b) => (b.entry_date || '').localeCompare(a.entry_date || ''));
+  }, [appData.transactions, fiscalCats, year]);
+
   const fetchAll = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
-    const [{ data: row }, { data: rows }] = await Promise.all([
-      supabase.from('fiscal_data').select('*').eq('year', year).maybeSingle(),
-      supabase.from('fiscal_entries').select('*').eq('year', year).order('created_at', { ascending: false }),
-    ]);
+    const { data: row } = await supabase.from('fiscal_data').select('*').eq('year', year).maybeSingle();
 
     if (row) {
       setRecordId(row.id);
@@ -131,20 +143,6 @@ export default function Fiscalite() {
       setPayments({});
       setLocks({});
     }
-
-    setEntries(
-      (rows || []).map((r: any) => ({
-        id: r.id,
-        year: r.year,
-        month: r.month,
-        category_id: r.category_id,
-        category_name: r.category_name,
-        label: r.label || '',
-        client: r.client || '',
-        amount: Number(r.amount) || 0,
-        entry_date: r.entry_date,
-      }))
-    );
     setLoading(false);
   }, [userId, year]);
 
@@ -190,12 +188,6 @@ export default function Fiscalite() {
     return null;
   }, [recordId, userId, year]);
 
-  const syncMonthCA = useCallback(async (month: string, list: FiscalEntry[]) => {
-    const id = await ensureRecord();
-    if (!id) return;
-    const total = list.filter(e => e.month === month).reduce((s, e) => s + e.amount, 0);
-    await supabase.from('fiscal_data').update({ [`ca_${month}`]: total, updated_at: new Date().toISOString() } as any).eq('id', id);
-  }, [ensureRecord]);
 
   const savePayment = useCallback(async (key: string, value: number) => {
     if (!userId) return;
@@ -215,74 +207,29 @@ export default function Fiscalite() {
     toast({ title: '🔒 Trimestre validé', description: `Le ${QUARTERS[qi].label} est maintenant verrouillé.` });
   }, [ensureRecord, toast]);
 
-  // ---------- Entry CRUD ----------
-  const openNew = (categoryId?: string, month?: string) => {
-    setForm({
-      ...emptyForm,
-      categoryId: categoryId || fiscalCats[0]?.id || '',
-      month: month || MONTHS[Math.min(now.getMonth(), 11)].key,
-    });
-    setDialogOpen(true);
-  };
-
-  const openEdit = (e: FiscalEntry) => {
-    setForm({
-      id: e.id,
-      month: e.month,
-      categoryId: e.category_id || fiscalCats.find(c => c.name === e.category_name)?.id || '',
-      label: e.label,
-      client: e.client,
-      amount: String(e.amount),
-      entryDate: e.entry_date || '',
-    });
-    setDialogOpen(true);
-  };
-
-  const submitEntry = async () => {
-    if (!userId) return;
-    const cat = fiscalCats.find(c => c.id === form.categoryId);
-    if (!cat) { toast({ title: 'Activité requise', description: 'Ajoutez une activité dans Catégories > Fiscalité.', variant: 'destructive' }); return; }
-    const amount = Math.max(0, Number(form.amount) || 0);
-    if (!form.label.trim()) { toast({ title: 'Détail requis', description: 'Indiquez la prestation (ex: site web, maintenance…).', variant: 'destructive' }); return; }
-    if (isMonthDisabled(form.month)) { toast({ title: 'Mois verrouillé', description: 'Ce mois n\'est plus modifiable.', variant: 'destructive' }); return; }
-
-    setSaving(true);
-    const payload = {
-      user_id: userId,
-      year,
-      month: form.month,
-      category_id: cat.id,
-      category_name: cat.name,
-      label: form.label.trim(),
-      client: form.client.trim(),
-      amount,
-      entry_date: form.entryDate || null,
-    };
-
-    let next: FiscalEntry[] = entries;
-    if (form.id) {
-      const { data: row } = await supabase.from('fiscal_entries').update(payload).eq('id', form.id).select().single();
-      if (row) next = entries.map(e => (e.id === form.id ? { ...(row as any), amount: Number(row.amount) } : e));
-    } else {
-      const { data: row } = await supabase.from('fiscal_entries').insert(payload).select().single();
-      if (row) next = [{ ...(row as any), amount: Number(row.amount) }, ...entries];
-    }
-    setEntries(next);
-    await syncMonthCA(form.month, next);
-    setSaving(false);
-    setDialogOpen(false);
-    toast({ title: '✓ Écriture enregistrée', description: `${cat.name} — ${fmt(amount)}` });
-  };
-
+  // ---------- Écritures = transactions de revenu ----------
+  const openNew = (_categoryId?: string, _month?: string) => navigate('/transactions');
+  const openEdit = (_e: FiscalEntry) => navigate('/transactions');
   const deleteEntry = async (e: FiscalEntry) => {
     if (isMonthDisabled(e.month)) { toast({ title: 'Mois verrouillé', variant: 'destructive' }); return; }
     if (!window.confirm(`Supprimer « ${e.label} » (${fmt(e.amount)}) ?`)) return;
-    await supabase.from('fiscal_entries').delete().eq('id', e.id);
-    const next = entries.filter(x => x.id !== e.id);
-    setEntries(next);
-    await syncMonthCA(e.month, next);
-    toast({ title: 'Écriture supprimée' });
+    await deleteTransaction(e.id);
+    toast({ title: 'Transaction supprimée' });
   };
+
+  // Garde la synthèse CA mensuelle à jour dans la base
+  useEffect(() => {
+    if (loading || !userId) return;
+    const t = setTimeout(async () => {
+      const id = await ensureRecord();
+      if (!id) return;
+      const upd: Record<string, number> = {};
+      MONTHS.forEach(m => { upd[`ca_${m.key}`] = entries.filter(e => e.month === m.key).reduce((s, e) => s + e.amount, 0); });
+      await supabase.from('fiscal_data').update(upd as any).eq('id', id);
+    }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, loading, userId]);
 
   // ---------- Calculs ----------
   const quarterCA = QUARTERS.map(q => q.months.reduce((s, m) => s + monthTotal(m), 0));
@@ -420,7 +367,7 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
               {!disabled && (
                 <Button variant="outline" size="sm" className="gap-1.5 mt-1"
                   onClick={() => openNew(catName ? fiscalCats.find(c => c.name === catName)?.id : undefined, m.key)}>
-                  <Plus className="w-3.5 h-3.5" /> Ajouter une écriture
+                  <Plus className="w-3.5 h-3.5" /> Ajouter via Transactions
                 </Button>
               )}
             </AccordionContent>
@@ -718,65 +665,6 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
         </CardContent>
       </Card>
 
-      {/* Dialog écriture */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{form.id ? 'Modifier l\'écriture' : 'Nouvelle écriture fiscale'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Activité</Label>
-                <Select value={form.categoryId} onValueChange={v => setForm(f => ({ ...f, categoryId: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Choisir" /></SelectTrigger>
-                  <SelectContent>
-                    {fiscalCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Mois</Label>
-                <Select value={form.month} onValueChange={v => setForm(f => ({ ...f, month: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {MONTHS.map(m => (
-                      <SelectItem key={m.key} value={m.key} disabled={isMonthDisabled(m.key)}>{m.full}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Détail de la prestation / vente</Label>
-              <Textarea value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
-                placeholder="Ex: Création site web vitrine, Maintenance mensuelle, Vente lot de produits…"
-                className="mt-1" rows={2} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Montant (XOF)</Label>
-                <Input type="number" min={0} value={form.amount} placeholder="150000"
-                  onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className="mt-1" />
-              </div>
-              <div>
-                <Label className="text-xs">Date (optionnel)</Label>
-                <Input type="date" value={form.entryDate}
-                  onChange={e => setForm(f => ({ ...f, entryDate: e.target.value }))} className="mt-1" />
-              </div>
-            </div>
-            <div>
-              <Label className="text-xs">Client (optionnel)</Label>
-              <Input value={form.client} onChange={e => setForm(f => ({ ...f, client: e.target.value }))}
-                placeholder="Nom du client" className="mt-1" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
-            <Button onClick={submitEntry} disabled={saving}>{form.id ? 'Enregistrer' : 'Ajouter'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
