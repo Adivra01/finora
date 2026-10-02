@@ -333,12 +333,6 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className={`text-sm font-bold ${catColor(e.category_name).text}`}>{fmt(e.amount)}</span>
-        <Button variant="ghost" size="icon" className="h-7 w-7" disabled={isMonthDisabled(e.month)} onClick={() => openEdit(e)}>
-          <Pencil className="w-3.5 h-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" disabled={isMonthDisabled(e.month)} onClick={() => deleteEntry(e)}>
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
       </div>
     </div>
   );
@@ -362,14 +356,8 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
               </div>
             </AccordionTrigger>
             <AccordionContent className="space-y-2">
-              {list.length === 0 && <p className="text-xs text-muted-foreground py-2">Aucune écriture pour ce mois.</p>}
+              {list.length === 0 && <p className="text-xs text-muted-foreground py-2">Aucune transaction fiscale pour ce mois.</p>}
               {list.map(e => renderEntryRow(e, !catName))}
-              {!disabled && (
-                <Button variant="outline" size="sm" className="gap-1.5 mt-1"
-                  onClick={() => openNew(catName ? fiscalCats.find(c => c.name === catName)?.id : undefined, m.key)}>
-                  <Plus className="w-3.5 h-3.5" /> Ajouter via Transactions
-                </Button>
-              )}
             </AccordionContent>
           </AccordionItem>
         );
@@ -404,9 +392,6 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <Button onClick={() => openNew()} size="sm" className="gap-2" disabled={fiscalCats.length === 0}>
-            <Plus className="w-4 h-4" /> Nouvelle écriture
-          </Button>
           <Button onClick={exportPDF} variant="outline" size="sm" className="gap-2">
             <FileDown className="w-4 h-4" /> Export PDF
           </Button>
