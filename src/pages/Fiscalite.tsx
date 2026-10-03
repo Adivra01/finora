@@ -428,10 +428,10 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
       {fiscalCats.length === 0 && (
         <Alert>
           <Tag className="h-4 w-4" />
-          <AlertTitle>Aucune activité fiscale</AlertTitle>
+          <AlertTitle>Aucun revenu cette année</AlertTitle>
           <AlertDescription className="text-sm">
-            Ajoutez vos activités (E-commerce, Prestation de service, Consultante data…) dans{' '}
-            <Link to="/categories" className="underline font-medium">Catégories → Fiscalité</Link>.
+            Le CA est calculé automatiquement depuis vos revenus dans{' '}
+            <Link to="/transactions" className="underline font-medium">Transactions</Link>.
           </AlertDescription>
         </Alert>
       )}
