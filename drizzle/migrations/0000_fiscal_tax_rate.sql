@@ -1,0 +1,1 @@
+ALTER TABLE public.fiscal_data ADD COLUMN IF NOT EXISTS tax_rate numeric NOT NULL DEFAULT 3;
