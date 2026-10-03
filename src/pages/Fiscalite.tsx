@@ -45,7 +45,6 @@ const QUARTERS = [
 ] as const;
 
 const YEARS = Array.from({ length: 15 }, (_, i) => 2026 + i);
-const TAUX = 0.06;
 const SEUIL_TVA = 30_000_000;
 
 const PALETTE = [
@@ -100,10 +99,17 @@ export default function Fiscalite() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const fiscalCats = useMemo(
-    () => appData.categories.filter(c => c.group === 'fiscalite'),
-    [appData.categories]
-  );
+  const [ratePct, setRatePct] = useState(3);
+  const [rateInput, setRateInput] = useState('3');
+  const TAUX = ratePct / 100;
+
+  // CA = TOUS les revenus de l'année (identique au tableau de bord)
+  const fiscalCats = useMemo(() => {
+    const names = Array.from(new Set(
+      appData.transactions.filter(t => t.type === 'revenu' && t.date?.startsWith(String(year))).map(t => t.category)
+    )).sort();
+    return names.map(n => ({ id: n, name: n }));
+  }, [appData.transactions, year]);
 
   // ---------- Fetch ----------
   const entries: FiscalEntry[] = useMemo(() => {
@@ -138,10 +144,13 @@ export default function Fiscalite() {
       });
       setPayments(p);
       setLocks(lk);
+      const r = Number((row as any).tax_rate ?? 3);
+      setRatePct(r); setRateInput(String(r));
     } else {
       setRecordId(null);
       setPayments({});
       setLocks({});
+      setRatePct(3); setRateInput('3');
     }
     setLoading(false);
   }, [userId, year]);
@@ -197,6 +206,15 @@ export default function Fiscalite() {
     setSaving(false);
     toast({ title: '✓ Enregistré', description: 'Paiement mis à jour' });
   }, [userId, ensureRecord, toast]);
+
+  const saveRate = useCallback(async () => {
+    const v = parseFloat(rateInput.replace(',', '.'));
+    if (isNaN(v) || v < 0 || v > 100) { toast({ title: 'Taux invalide', variant: 'destructive' }); return; }
+    const id = await ensureRecord();
+    if (id) await supabase.from('fiscal_data').update({ tax_rate: v } as any).eq('id', id);
+    setRatePct(v);
+    toast({ title: '✓ Taux mis à jour', description: `Impôt recalculé à ${v}% du CA ${year}` });
+  }, [rateInput, ensureRecord, toast, year]);
 
   const lockQuarter = useCallback(async (qi: number) => {
     const id = await ensureRecord();
@@ -281,7 +299,7 @@ export default function Fiscalite() {
  .footer{margin-top:32px;text-align:center;font-size:11px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:14px}
 </style></head><body>
 <div class="header"><h1>📊 Récapitulatif Fiscal ${year}</h1>
-<p>Régime Simplifié — Bamako — Taux 6% | Généré le ${new Date().toLocaleDateString('fr-FR')}</p></div>
+<p>Régime Simplifié — Bamako — Taux ${ratePct}% | Généré le ${new Date().toLocaleDateString('fr-FR')}</p></div>
 <div class="grid">
  <div class="card"><div class="l">CA Annuel</div><div class="v">${fmt(caAnnuel)}</div></div>
  <div class="card"><div class="l">Impôt Annuel</div><div class="v">${fmt(impotAnnuel)}</div></div>
@@ -289,7 +307,7 @@ export default function Fiscalite() {
  <div class="card"><div class="l">Solde</div><div class="v">${fmt(solde)}</div></div>
 </div>
 <div class="section"><h2>Chiffre d'affaires mensuel par activité</h2><table>
-<tr><th>Mois</th>${cats.map(c => `<th class="r">${c}</th>`).join('')}<th class="r">CA Total</th><th class="r">Impôt (6%)</th></tr>
+<tr><th>Mois</th>${cats.map(c => `<th class="r">${c}</th>`).join('')}<th class="r">CA Total</th><th class="r">Impôt (${ratePct}%)</th></tr>
 ${MONTHS.map(m => `<tr><td>${m.full}</td>${cats.map(c => `<td class="r">${fmt(monthCatTotal(m.key, c))}</td>`).join('')}<td class="r b">${fmt(monthTotal(m.key))}</td><td class="r">${fmt(monthTotal(m.key) * TAUX)}</td></tr>`).join('')}
 <tr class="b" style="background:#e8f0fe"><td>Total</td>${cats.map(c => `<td class="r">${fmt(catTotal(c))}</td>`).join('')}<td class="r">${fmt(caAnnuel)}</td><td class="r">${fmt(impotAnnuel)}</td></tr>
 </table></div>
@@ -375,10 +393,19 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Fiscalité</h1>
-            <p className="text-sm text-muted-foreground">Régime simplifié — Bamako — Taux 6%</p>
+            <p className="text-sm text-muted-foreground">Régime simplifié — Bamako — CA = tous les revenus des transactions</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 pl-3">
+            <span className="text-xs text-muted-foreground">Taux impôt</span>
+            <input type="number" step="0.1" min="0" max="100" value={rateInput}
+              onChange={e => setRateInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveRate(); }}
+              className="w-16 h-8 px-2 rounded-md bg-secondary text-sm text-foreground focus:outline-none" />
+            <span className="text-xs text-muted-foreground">%</span>
+            <Button size="sm" variant="ghost" className="h-8" onClick={saveRate} disabled={parseFloat(rateInput) === ratePct}>OK</Button>
+          </div>
           {saving && <Badge variant="secondary" className="animate-pulse">Sauvegarde...</Badge>}
           <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setYear(y => Math.max(2026, y - 1))} disabled={year <= 2026}>
@@ -440,7 +467,7 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
           <CardContent className="p-5 relative">
             <div className="flex items-center gap-2 mb-3">
               <div className="p-1.5 rounded-lg bg-amber-500/10"><Calculator className="w-4 h-4 text-amber-600" /></div>
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Impôt (6%)</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Impôt ({ratePct}%)</span>
             </div>
             <p className="text-2xl font-bold text-foreground">{fmtShort(impotAnnuel)}</p>
             <p className="text-xs text-muted-foreground mt-1">{fmt(impotAnnuel)}</p>
