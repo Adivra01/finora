@@ -125,6 +125,7 @@ export type Database = {
           service_nov: number
           service_oct: number
           service_sept: number
+          tax_rate: number
           updated_at: string
           user_id: string
           year: number
@@ -188,6 +189,7 @@ export type Database = {
           service_nov?: number
           service_oct?: number
           service_sept?: number
+          tax_rate?: number
           updated_at?: string
           user_id: string
           year?: number
@@ -251,6 +253,7 @@ export type Database = {
           service_nov?: number
           service_oct?: number
           service_sept?: number
+          tax_rate?: number
           updated_at?: string
           user_id?: string
           year?: number
