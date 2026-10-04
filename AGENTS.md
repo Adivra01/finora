@@ -1,0 +1,1 @@
+- Derive dashboard revenue, expenses, and estimated tax from retained transactions for the selected year; this keeps overview and fiscal calculations aligned without duplicating stored totals.
