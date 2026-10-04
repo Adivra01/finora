@@ -1,0 +1,2 @@
+- [ ] Rebuild dashboard using retained transactions, annual fiscal rate and paid tax.
+- [ ] Verify metrics with tests and the authenticated preview.
