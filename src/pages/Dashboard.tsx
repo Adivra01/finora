@@ -94,7 +94,7 @@ export default function Dashboard() {
           { label: 'Chiffre d’affaires', value: metrics.revenue, icon: ArrowUpRight, tone: 'text-success bg-success/10', note: `${metrics.yearly.filter(t => t.type === 'revenu').length} encaissements` },
           { label: 'Dépenses', value: metrics.expenses, icon: ArrowDownRight, tone: 'text-destructive bg-destructive/10', note: `${metrics.yearly.filter(t => t.type === 'depense').length} sorties` },
           { label: 'Flux net', value: metrics.cashFlow, icon: Wallet, tone: 'text-primary bg-primary/10', note: 'Revenus − dépenses' },
-          { label: 'Reste à payer (clients)', value: metrics.payableRemaining, icon: CreditCard, tone: 'text-warning bg-warning/10', note: 'Créances non encaissées' },
+          { label: 'Reste à encaisser', value: metrics.payableRemaining, icon: CreditCard, tone: 'text-warning bg-warning/10', note: 'Créances clients non encaissées' },
         ].map(item => (
           <div key={item.label} className="min-w-0 rounded-md border border-border bg-card p-5">
             <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted-foreground">{item.label}</p><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${item.tone}`}><item.icon className="h-4 w-4" /></span></div>
