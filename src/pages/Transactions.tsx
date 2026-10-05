@@ -17,7 +17,7 @@ const Transactions = () => {
   const [perPage, setPerPage] = useState(10);
 
   const categories = data.categories.filter(c =>
-    type === 'revenu' ? c.group === 'revenu' || c.group === 'fiscalite' : c.group === 'depense' || c.group === 'business'
+    type === 'revenu' ? c.group === 'revenu' || c.group === 'fiscalite' : c.group === 'depense'
   );
 
   const resetForm = () => {

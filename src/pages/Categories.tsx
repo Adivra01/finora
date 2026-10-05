@@ -31,7 +31,7 @@ const Categories = () => {
     setName('');
   };
 
-  const groups: CategoryGroup[] = ['depense', 'revenu', 'business', 'fiscalite'];
+  const groups: CategoryGroup[] = ['depense', 'revenu', 'fiscalite'];
 
   return (
     <div className="space-y-6 animate-fade-in">

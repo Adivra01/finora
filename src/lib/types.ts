@@ -65,10 +65,6 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'c9', name: 'Freelance', group: 'revenu' },
   { id: 'c10', name: 'Investissement', group: 'revenu' },
   { id: 'c11', name: 'Autres', group: 'revenu' },
-  { id: 'c12', name: 'Consultation', group: 'business' },
-  { id: 'c13', name: 'Développement', group: 'business' },
-  { id: 'c14', name: 'Design', group: 'business' },
-  { id: 'c15', name: 'Marketing', group: 'business' },
 ];
 
 export const DEFAULT_INVESTMENT_TYPES = [

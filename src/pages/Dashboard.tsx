@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, CalendarDays, CreditCard, Landmark, RefreshCw, TrendingUp, Wallet } from 'lucide-react';
+import { Activity, ArrowDownRight, ArrowRight, ArrowUpRight, CalendarDays, CreditCard, Landmark, PiggyBank, RefreshCw, TrendingUp, Wallet } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,7 +42,7 @@ export default function Dashboard() {
     return () => { active = false; };
   }, [userId, year, fiscalRefresh]);
 
-  const metrics = useMemo(() => dashboardMetrics(data.transactions, data.payables, year, taxRate, taxPaid), [data.transactions, data.payables, year, taxRate, taxPaid]);
+  const metrics = useMemo(() => dashboardMetrics(data.transactions, data.payables, year, taxRate, taxPaid, data.investments), [data.transactions, data.payables, data.investments, year, taxRate, taxPaid]);
   const categories = useMemo(() => [...new Set(metrics.yearly.map(t => t.category))].sort((a, b) => a.localeCompare(b, 'fr')), [metrics.yearly]);
   const visible = useMemo(() => metrics.yearly.filter(t => {
     if (type !== 'all' && t.type !== type) return false;
@@ -89,14 +89,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           { label: 'Chiffre d’affaires', value: metrics.revenue, icon: ArrowUpRight, tone: 'text-success bg-success/10', note: `${metrics.yearly.filter(t => t.type === 'revenu').length} encaissements` },
           { label: 'Dépenses', value: metrics.expenses, icon: ArrowDownRight, tone: 'text-destructive bg-destructive/10', note: `${metrics.yearly.filter(t => t.type === 'depense').length} sorties` },
-          { label: 'Flux net', value: metrics.cashFlow, icon: Wallet, tone: 'text-primary bg-primary/10', note: 'Revenus − dépenses' },
+          { label: 'Investissements', value: metrics.invested, icon: PiggyBank, tone: 'text-info bg-info/10', note: `Total investi : ${money(metrics.investedTotal)}` },
+          { label: 'Flux net', value: metrics.cashFlow, icon: Wallet, tone: 'text-primary bg-primary/10', note: 'Revenus − dépenses − investissements' },
           { label: 'Reste à encaisser', value: metrics.payableRemaining, icon: CreditCard, tone: 'text-warning bg-warning/10', note: 'Créances clients non encaissées' },
-        ].map(item => (
-          <div key={item.label} className="min-w-0 rounded-md border border-border bg-card p-5">
+        ].map((item, i) => (
+          <div key={item.label} style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }} className="min-w-0 rounded-md border border-border bg-card p-5 animate-fade-in transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:border-primary/40">
             <div className="flex items-center justify-between gap-2"><p className="text-sm text-muted-foreground">{item.label}</p><span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${item.tone}`}><item.icon className="h-4 w-4" /></span></div>
             <p className="mt-4 break-words text-2xl font-bold text-foreground">{isLoading ? '…' : money(item.value)}</p>
             <p className="mt-2 text-xs text-muted-foreground">{item.note}</p>
