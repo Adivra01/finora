@@ -908,6 +908,52 @@ export default function Facturation() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reminder Dialog */}
+      <Dialog open={!!reminderInvoice} onOpenChange={(open) => !open && setReminderInvoice(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Relancer le client</DialogTitle>
+          </DialogHeader>
+          {reminderInvoice && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Message de relance pour {reminderInvoice.client_name} — {reminderInvoice.invoice_number} ({fmt(Number(reminderInvoice.total))})
+              </p>
+              <Textarea
+                id="reminder-text"
+                rows={8}
+                defaultValue={`Bonjour ${reminderInvoice.client_name},\n\nJe me permets de vous relancer concernant la ${reminderInvoice.type} ${reminderInvoice.invoice_number} d'un montant de ${fmt(Number(reminderInvoice.total))}${reminderInvoice.due_date ? `, dont l'échéance était le ${reminderInvoice.due_date}` : ''}.\n\nMerci de bien vouloir procéder au règlement ou de me tenir informé.\n\nCordialement`}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const el = document.getElementById('reminder-text') as HTMLTextAreaElement;
+                    navigator.clipboard.writeText(el.value);
+                    toast({ title: 'Message copié' });
+                  }}
+                >
+                  <Copy className="w-4 h-4 mr-2" /> Copier
+                </Button>
+                {reminderInvoice.client_email && (
+                  <Button
+                    onClick={() => {
+                      const el = document.getElementById('reminder-text') as HTMLTextAreaElement;
+                      window.open(`mailto:${reminderInvoice.client_email}?subject=${encodeURIComponent(`Relance ${reminderInvoice.invoice_number}`)}&body=${encodeURIComponent(el.value)}`, '_blank');
+                    }}
+                  >
+                    <Send className="w-4 h-4 mr-2" /> Envoyer par e-mail
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReminderInvoice(null)}>Fermer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
