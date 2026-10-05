@@ -470,19 +470,29 @@ export default function Facturation() {
                           <Button variant="ghost" size="icon" onClick={() => viewInvoice(inv)} title="Voir">
                             <Eye className="w-4 h-4" />
                           </Button>
+                          {inv.status !== 'annulé' && (
+                            <Button variant="ghost" size="icon" onClick={() => openEdit(inv)} title="Modifier">
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          )}
                           {inv.status === 'brouillon' && (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={() => openEdit(inv)} title="Modifier">
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => updateStatus(inv, 'envoyé')} title="Marquer envoyé">
-                                <Send className="w-4 h-4" />
-                              </Button>
-                            </>
+                            <Button variant="ghost" size="icon" onClick={() => updateStatus(inv, 'envoyé')} title="Marquer envoyé">
+                              <Send className="w-4 h-4" />
+                            </Button>
                           )}
                           {inv.status === 'envoyé' && (
                             <Button variant="ghost" size="icon" onClick={() => updateStatus(inv, 'payé')} title="Marquer payé">
                               <CheckCircle className="w-4 h-4 text-green-600" />
+                            </Button>
+                          )}
+                          {inv.status === 'payé' && (
+                            <Button variant="ghost" size="icon" onClick={() => updateStatus(inv, 'envoyé')} title="Remettre en attente de paiement">
+                              <XCircle className="w-4 h-4 text-amber-600" />
+                            </Button>
+                          )}
+                          {inv.status !== 'annulé' && (
+                            <Button variant="ghost" size="icon" onClick={() => setReminderInvoice(inv)} title="Relancer le client">
+                              <BellRing className="w-4 h-4 text-primary" />
                             </Button>
                           )}
                           {(inv.status === 'brouillon' || inv.status === 'envoyé') && (
