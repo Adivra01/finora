@@ -30,7 +30,7 @@ const PlannedExpenses = () => {
   const [page, setPage] = useState(1);
   const perPage = 10;
 
-  const depenseCategories = appData.categories.filter(c => c.group === 'depense' || c.group === 'business');
+  const depenseCategories = appData.categories.filter(c => c.group === 'depense');
 
   const fetchExpenses = useCallback(async () => {
     if (!userId) return;

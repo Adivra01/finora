@@ -30,4 +30,15 @@ describe('dashboard fiscal reconciliation', () => {
     expect(result.cashFlow).toBe(307000);
     expect(result.payableRemaining).toBe(170000);
   });
+
+  it('deducts investments of the selected year from net cash flow', () => {
+    const investments = [
+      { id: 'i1', type: 'Crypto', name: 'x', amount: 100000, date: '2026-05-01', description: '', createdAt: '' },
+      { id: 'i2', type: 'Crypto', name: 'y', amount: 40000, date: '2025-05-01', description: '', createdAt: '' },
+    ];
+    const result = dashboardMetrics(transactions, [], 2026, 3, 0, investments);
+    expect(result.invested).toBe(100000);
+    expect(result.cashFlow).toBe(207000);
+    expect(result.investedTotal).toBe(140000);
+  });
 });
