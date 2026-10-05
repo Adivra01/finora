@@ -32,6 +32,8 @@ import {
   XCircle,
   Pencil,
   Settings2,
+  BellRing,
+  Copy,
 } from 'lucide-react';
 import {
   DEFAULT_INVOICE_SETTINGS,
