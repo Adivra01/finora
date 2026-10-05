@@ -91,6 +91,7 @@ export default function Facturation() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [reminderInvoice, setReminderInvoice] = useState<Invoice | null>(null);
   const [viewItems, setViewItems] = useState<InvoiceItem[]>([]);
   const [filterType, setFilterType] = useState<'all' | 'facture' | 'devis'>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
