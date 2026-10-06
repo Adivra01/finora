@@ -51,18 +51,18 @@ export function Layout() {
   };
 
   const sidebar = (
-    <div className="flex h-full flex-col bg-card border-r border-border">
-      <div className="flex items-center gap-2 h-16 px-5 border-b border-border">
+    <div className="flex h-full flex-col border-r border-border bg-card">
+      <div className="flex h-20 items-center gap-3 px-5">
         <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
           <DollarSign className="w-5 h-5 text-primary-foreground" />
         </div>
-        <span className="text-lg font-bold font-display text-foreground">Fintrack</span>
+        <span className="font-display text-xl font-bold text-foreground">Fintrack</span>
         <button className="ml-auto lg:hidden text-muted-foreground" onClick={() => setOpen(false)} aria-label="Fermer le menu">
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {navItems.map(item => {
           const isActive = location.pathname === item.to;
           return (
@@ -70,9 +70,9 @@ export function Layout() {
               key={item.to}
               to={item.to}
               onClick={() => setOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                 isActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  ? 'bg-primary/10 text-primary'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
@@ -121,7 +121,7 @@ export function Layout() {
           <span className="text-lg font-bold font-display text-foreground">Fintrack</span>
         </header>
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
           <Outlet />
         </main>
       </div>

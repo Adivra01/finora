@@ -1,2 +1,4 @@
 - [x] Rebuild dashboard using retained transactions, annual fiscal rate and paid tax.
 - [x] Verify metrics with tests and the authenticated preview.
+- [ ] Apply the selected bright fintech dashboard redesign without changing calculations.
+- [ ] Verify dashboard charts, animation, desktop and mobile presentation.
