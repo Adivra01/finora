@@ -2,3 +2,5 @@
 - [x] Verify metrics with tests and the authenticated preview.
 - [ ] Apply the selected bright fintech dashboard redesign without changing calculations.
 - [ ] Verify dashboard charts, animation, desktop and mobile presentation.
+- [ ] Apply the selected chart-led Fiscalité redesign without changing calculations.
+- [ ] Verify Fiscalité with retained transactions, filters, quarterly controls and PDF.
