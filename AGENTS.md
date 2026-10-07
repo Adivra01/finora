@@ -1,1 +1,2 @@
 - Derive dashboard revenue, expenses, and estimated tax from retained transactions for the selected year; this keeps overview and fiscal calculations aligned without duplicating stored totals.
+- Keep Fiscalité presentation changes separate from its transaction-derived calculations and payment persistence; visual redesigns must not change financial results.
