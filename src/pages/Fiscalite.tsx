@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Link, useNavigate } from 'react-router-dom';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 const MONTHS = [
   { key: 'jan', label: 'Jan', full: 'Janvier' },
@@ -47,13 +48,14 @@ const QUARTERS = [
 const YEARS = Array.from({ length: 15 }, (_, i) => 2026 + i);
 const SEUIL_TVA = 30_000_000;
 
+const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--warning))', 'hsl(var(--success))', 'hsl(var(--info))', 'hsl(var(--destructive))', 'hsl(var(--foreground))'];
 const PALETTE = [
-  { bar: 'bg-primary', grad: 'from-primary to-primary/60', text: 'text-primary' },
-  { bar: 'bg-amber-500', grad: 'from-amber-500 to-amber-400/60', text: 'text-amber-600' },
-  { bar: 'bg-violet-500', grad: 'from-violet-500 to-violet-400/60', text: 'text-violet-600' },
-  { bar: 'bg-cyan-500', grad: 'from-cyan-500 to-cyan-400/60', text: 'text-cyan-600' },
-  { bar: 'bg-rose-500', grad: 'from-rose-500 to-rose-400/60', text: 'text-rose-600' },
-  { bar: 'bg-lime-500', grad: 'from-lime-500 to-lime-400/60', text: 'text-lime-600' },
+  { bar: 'bg-primary', text: 'text-primary' },
+  { bar: 'bg-warning', text: 'text-warning' },
+  { bar: 'bg-success', text: 'text-success' },
+  { bar: 'bg-info', text: 'text-info' },
+  { bar: 'bg-destructive', text: 'text-destructive' },
+  { bar: 'bg-foreground', text: 'text-foreground' },
 ];
 
 const fmt = (n: number) =>
@@ -98,6 +100,14 @@ export default function Fiscalite() {
   const [recordId, setRecordId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   const [ratePct, setRatePct] = useState(3);
   const [rateInput, setRateInput] = useState('3');
@@ -188,9 +198,10 @@ export default function Fiscalite() {
   // ---------- Fiscal data (payments / locks / legacy CA sync) ----------
   const ensureRecord = useCallback(async () => {
     if (recordId) return recordId;
+    if (!userId) return null;
     const { data: row } = await supabase
       .from('fiscal_data')
-      .insert({ user_id: userId!, year })
+      .insert({ user_id: userId, year })
       .select()
       .single();
     if (row) { setRecordId(row.id); return row.id; }
@@ -338,345 +349,115 @@ ${QUARTERS.map((q, i) => `<tr><td>${q.label} (${q.period})</td><td class="r b">$
     </div>
   );
 
+  const chartData = MONTHS.map(m => ({
+    month: m.label,
+    ...Object.fromEntries(fiscalCats.map(c => [c.name, monthCatTotal(m.key, c.name)])),
+  }));
   const renderEntryRow = (e: FiscalEntry, showCat = true) => (
-    <div key={e.id} className="flex items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border border-border/50">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-foreground truncate">{e.label}</span>
-          {showCat && <Badge variant="secondary" className="text-[10px]">{e.category_name}</Badge>}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {e.client ? `${e.client} · ` : ''}{e.entry_date ? new Date(e.entry_date).toLocaleDateString('fr-FR') : MONTHS.find(m => m.key === e.month)?.full}
-        </p>
+    <div key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-4 py-3 last:border-0">
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-sm font-medium">{e.label}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{showCat && `${e.category_name} · `}{e.client && `${e.client} · `}{e.entry_date ? new Date(e.entry_date).toLocaleDateString('fr-FR') : ''}</p>
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <span className={`text-sm font-bold ${catColor(e.category_name).text}`}>{fmt(e.amount)}</span>
-      </div>
+      <span className={`text-sm font-semibold tabular-nums ${catColor(e.category_name).text}`}>{fmt(e.amount)}</span>
     </div>
   );
-
   const monthsAccordion = (catName?: string) => (
     <Accordion type="multiple" className="w-full">
-      {MONTHS.map(m => {
+      {MONTHS.map((m, index) => {
         const list = entries.filter(e => e.month === m.key && (!catName || e.category_name === catName));
         const total = list.reduce((s, e) => s + e.amount, 0);
         const disabled = isMonthDisabled(m.key);
-        return (
-          <AccordionItem key={m.key} value={m.key}>
-            <AccordionTrigger className="hover:no-underline">
-              <div className="flex items-center justify-between w-full pr-3">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  {m.full}
-                  {disabled && <Lock className="w-3 h-3 text-muted-foreground" />}
-                  <span className="text-xs text-muted-foreground">({list.length})</span>
-                </span>
-                <span className="text-sm font-bold">{fmt(total)}</span>
+        return <AccordionItem key={m.key} value={m.key} className="border-border">
+          <AccordionTrigger className="px-3 py-3 text-left hover:bg-muted/40 hover:no-underline sm:px-5">
+            <div className="flex w-full items-center justify-between gap-2 pr-3">
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                <span className="hidden w-5 text-xs tabular-nums text-muted-foreground sm:block">{String(index + 1).padStart(2, '0')}</span>
+                <div><span className={`flex items-center gap-1.5 text-sm font-semibold ${disabled ? 'text-muted-foreground' : 'text-foreground'}`}>{m.full}{disabled && <Lock className="h-3 w-3" />}</span>
+                  <span className="text-xs text-muted-foreground">{list.length} transaction{list.length > 1 ? 's' : ''}</span>
+                </div>
               </div>
-            </AccordionTrigger>
-            <AccordionContent className="space-y-2">
-              {list.length === 0 && <p className="text-xs text-muted-foreground py-2">Aucune transaction fiscale pour ce mois.</p>}
-              {list.map(e => renderEntryRow(e, !catName))}
-            </AccordionContent>
-          </AccordionItem>
-        );
+              <div className="shrink-0 text-right"><p className="font-display text-xs font-bold tabular-nums sm:text-sm">{fmt(total)}</p><p className="mt-0.5 text-[10px] text-muted-foreground">Impôt : {fmt(total * TAUX)}</p></div>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="bg-muted/25 pb-0">
+            {list.length ? list.map(e => renderEntryRow(e, !catName)) : <p className="px-5 py-4 text-xs text-muted-foreground">Aucune transaction fiscale pour ce mois.</p>}
+          </AccordionContent>
+        </AccordionItem>;
       })}
     </Accordion>
   );
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/10">
-            <Receipt className="w-6 h-6 text-primary" />
+    <div className="fiscal-page mx-auto max-w-7xl space-y-5 bg-background pb-8">
+      <header className="dashboard-enter flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
+        <div><div className="mb-2 flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground"><Receipt className="h-6 w-6" /></span><h1 className="font-display text-3xl font-bold">Fiscalité</h1></div><p className="text-xs text-muted-foreground sm:text-sm">Régime simplifié · Bamako · Exercice {year}</p></div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex h-10 items-center gap-1 rounded-md border border-border bg-card pl-3">
+            <Label htmlFor="fiscal-rate" className="text-xs text-muted-foreground">Taux impôt</Label>
+            <Input id="fiscal-rate" type="number" step="0.1" min="0" max="100" value={rateInput} onChange={e => setRateInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') saveRate(); }} className="h-8 w-14 border-0 bg-transparent px-1 text-center font-bold text-primary shadow-none" />
+            <span className="text-xs text-muted-foreground">%</span><Button size="icon" variant="ghost" aria-label="Enregistrer le taux" title="Enregistrer le taux" className="h-8 w-8" onClick={saveRate} disabled={parseFloat(rateInput) === ratePct}><CheckCircle2 className="h-4 w-4" /></Button>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Fiscalité</h1>
-            <p className="text-sm text-muted-foreground">Régime simplifié — Bamako — CA = tous les revenus des transactions</p>
+          <div className="flex h-10 items-center rounded-md border border-border bg-card">
+            <Button variant="ghost" size="icon" aria-label="Année précédente" className="h-8 w-8" onClick={() => setYear(y => Math.max(2026, y - 1))} disabled={year <= 2026}><ChevronLeft className="h-4 w-4" /></Button>
+            <label className="sr-only" htmlFor="fiscal-year">Année fiscale</label><select id="fiscal-year" value={year} onChange={e => setYear(Number(e.target.value))} className="bg-card px-1 text-sm font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">{YEARS.map(y => <option key={y} value={y}>{y}</option>)}</select>
+            <Button variant="ghost" size="icon" aria-label="Année suivante" className="h-8 w-8" onClick={() => setYear(y => Math.min(2040, y + 1))} disabled={year >= 2040}><ChevronRight className="h-4 w-4" /></Button>
           </div>
+          <Button onClick={exportPDF} className="h-10 gap-2 rounded-md bg-foreground text-background hover:bg-foreground/90"><FileDown className="h-4 w-4" />Export PDF</Button>
+          {saving && <span role="status" className="text-xs text-muted-foreground">Sauvegarde…</span>}
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1 pl-3">
-            <span className="text-xs text-muted-foreground">Taux impôt</span>
-            <input type="number" step="0.1" min="0" max="100" value={rateInput}
-              onChange={e => setRateInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') saveRate(); }}
-              className="w-16 h-8 px-2 rounded-md bg-secondary text-sm text-foreground focus:outline-none" />
-            <span className="text-xs text-muted-foreground">%</span>
-            <Button size="sm" variant="ghost" className="h-8" onClick={saveRate} disabled={parseFloat(rateInput) === ratePct}>OK</Button>
-          </div>
-          {saving && <Badge variant="secondary" className="animate-pulse">Sauvegarde...</Badge>}
-          <div className="flex items-center gap-1 bg-card border border-border rounded-lg p-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setYear(y => Math.max(2026, y - 1))} disabled={year <= 2026}>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <select value={year} onChange={e => setYear(Number(e.target.value))}
-              className="rounded-md bg-transparent px-3 py-1.5 text-sm font-semibold text-foreground border-0 focus:outline-none cursor-pointer">
-              {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setYear(y => Math.min(2040, y + 1))} disabled={year >= 2040}>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          <Button onClick={exportPDF} variant="outline" size="sm" className="gap-2">
-            <FileDown className="w-4 h-4" /> Export PDF
-          </Button>
-        </div>
+      </header>
+
+      {alerts.length > 0 && <div className="grid gap-2 md:grid-cols-3">{alerts.map((a, i) => <Alert key={i} variant={a.type} className={`dashboard-enter fiscal-step rounded-md border-l-4 ${a.type === 'default' ? 'border-l-warning bg-warning/5' : 'border-l-destructive'}`}>
+        {a.type === 'destructive' ? <ShieldAlert className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4 text-warning" />}<AlertTitle className="font-display text-xs font-bold">{a.title}</AlertTitle><AlertDescription className="text-[11px] leading-5 text-muted-foreground">{a.msg}</AlertDescription>
+      </Alert>)}</div>}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { label: 'CA annuel', value: caAnnuel, icon: TrendingUp, tone: 'text-primary bg-primary/10' },
+          { label: `Impôt (${ratePct} %)`, value: impotAnnuel, icon: Calculator, tone: 'text-warning bg-warning/10' },
+          { label: 'Total payé', value: totalPaye, icon: Wallet, tone: 'text-success bg-success/10' },
+          { label: 'Solde dû', value: solde, icon: solde > 0 ? XCircle : CheckCircle2, tone: solde > 0 ? 'text-destructive bg-destructive/10' : 'text-success bg-success/10' },
+        ].map((k, i) => <article key={k.label} className={`dashboard-enter fiscal-step min-w-0 rounded-md border p-4 transition-transform duration-200 motion-safe:hover:-translate-y-1 sm:p-5 ${i === 3 && solde > 0 ? 'border-destructive/20 bg-destructive/5' : 'border-border bg-card'}`}>
+          <div className="mb-3 flex flex-wrap items-center gap-2"><span className={`flex h-8 w-8 items-center justify-center rounded-md ${k.tone}`}><k.icon className="h-4 w-4" /></span><span className="text-[10px] font-bold uppercase text-muted-foreground sm:text-xs">{k.label}</span></div>
+          <p className={`font-display text-3xl font-bold tabular-nums ${i === 3 && solde > 0 ? 'text-destructive' : 'text-foreground'}`}>{fmtShort(k.value)}</p><p className="mt-1 break-words text-xs tabular-nums text-muted-foreground">{fmt(k.value)}</p>
+        </article>)}
       </div>
 
-      {fiscalCats.length === 0 && (
-        <Alert>
-          <Tag className="h-4 w-4" />
-          <AlertTitle>Aucun revenu cette année</AlertTitle>
-          <AlertDescription className="text-sm">
-            Le CA est calculé automatiquement depuis vos revenus dans{' '}
-            <Link to="/transactions" className="underline font-medium">Transactions</Link>.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Alertes */}
-      {alerts.length > 0 && (
-        <div className="space-y-2">
-          {alerts.map((a, i) => (
-            <Alert key={i} variant={a.type} className="border-l-4">
-              {a.type === 'destructive' ? <ShieldAlert className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
-              <AlertTitle className="font-semibold">{a.title}</AlertTitle>
-              <AlertDescription className="text-sm">{a.msg}</AlertDescription>
-            </Alert>
-          ))}
-        </div>
-      )}
-
-      {/* KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent" />
-          <CardContent className="p-5 relative">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 rounded-lg bg-blue-500/10"><TrendingUp className="w-4 h-4 text-blue-600" /></div>
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CA Annuel</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">{fmtShort(caAnnuel)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{fmt(caAnnuel)}</p>
-          </CardContent>
-        </Card>
-        <Card className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
-          <CardContent className="p-5 relative">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 rounded-lg bg-amber-500/10"><Calculator className="w-4 h-4 text-amber-600" /></div>
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Impôt ({ratePct}%)</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">{fmtShort(impotAnnuel)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{fmt(impotAnnuel)}</p>
-          </CardContent>
-        </Card>
-        <Card className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent" />
-          <CardContent className="p-5 relative">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10"><Wallet className="w-4 h-4 text-emerald-600" /></div>
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Payé</span>
-            </div>
-            <p className="text-2xl font-bold text-foreground">{fmtShort(totalPaye)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{fmt(totalPaye)}</p>
-          </CardContent>
-        </Card>
-        <Card className="relative overflow-hidden">
-          <div className={`absolute inset-0 bg-gradient-to-br ${solde > 0 ? 'from-red-500/5' : 'from-emerald-500/5'} to-transparent`} />
-          <CardContent className="p-5 relative">
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`p-1.5 rounded-lg ${solde > 0 ? 'bg-red-500/10' : 'bg-emerald-500/10'}`}>
-                {solde > 0 ? <XCircle className="w-4 h-4 text-red-600" /> : <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-              </div>
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Solde</span>
-            </div>
-            <p className={`text-2xl font-bold ${solde > 0 ? 'text-destructive' : 'text-emerald-600'}`}>{fmtShort(solde)}</p>
-            <p className="text-xs text-muted-foreground mt-1">{fmt(solde)}</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Progression */}
-      <Card>
-        <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-medium text-foreground">Progression des paiements</span>
-            <span className="text-sm font-bold text-foreground">{progressPaiement.toFixed(0)}%</span>
-          </div>
-          <Progress value={progressPaiement} className="h-3" />
-          <div className="flex justify-between mt-2">
-            <span className="text-xs text-muted-foreground">Payé: {fmt(totalPaye)}</span>
-            <span className="text-xs text-muted-foreground">Total dû: {fmt(impotAnnuel)}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Chart + écritures */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-primary" />
-            Chiffre d'affaires mensuel détaillé
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-1.5 h-32 mb-4 px-1">
-            {MONTHS.map(m => {
-              const val = monthTotal(m.key);
-              const height = Math.max(4, (val / maxMonthCA) * 100);
-              return (
-                <div key={m.key} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-[10px] text-muted-foreground font-medium">{val > 0 ? fmtShort(val) : ''}</span>
-                  <div className="w-full flex flex-col-reverse rounded-t-md overflow-hidden" style={{ height: `${height}%`, minHeight: '4px' }}>
-                    {fiscalCats.map((c, i) => {
-                      const v = monthCatTotal(m.key, c.name);
-                      if (v <= 0) return null;
-                      return (
-                        <div key={c.id} className={`w-full bg-gradient-to-t ${PALETTE[i % PALETTE.length].grad}`}
-                          style={{ height: val > 0 ? `${(v / val) * 100}%` : '0', minHeight: '2px' }} />
-                      );
-                    })}
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">{m.label}</span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex items-center gap-4 mb-4 text-xs text-muted-foreground flex-wrap">
-            {fiscalCats.map((c, i) => (
-              <div key={c.id} className="flex items-center gap-1.5">
-                <div className={`w-3 h-3 rounded-sm ${PALETTE[i % PALETTE.length].bar}`} /> {c.name}
-              </div>
-            ))}
-          </div>
-          <Separator className="mb-4" />
-
+      <section className="dashboard-chart-enter min-w-0" aria-label="Chiffre d’affaires mensuel">
+        <div className="border-x border-t border-border bg-card px-3 pt-5 sm:px-5">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><h2 className="flex items-center gap-2 font-display text-lg font-bold"><span className="h-5 w-1 rounded-sm bg-primary" />Chiffre d’affaires mensuel détaillé</h2><span className="text-xs text-muted-foreground">{entries.length} transactions · FCFA</span></div>
+          {fiscalCats.length ? <>
+            <div className="h-64 w-full sm:h-72"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData} margin={{ top: 15, right: 4, left: -16, bottom: 0 }}><CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" /><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} interval={0} /><YAxis width={55} axisLine={false} tickLine={false} tickFormatter={fmtShort} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} /><Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, color: 'hsl(var(--foreground))' }} formatter={(v: number) => fmt(v)} />{fiscalCats.map((c, i) => <Bar key={c.id} dataKey={c.name} stackId="revenue" fill={CHART_COLORS[i % CHART_COLORS.length]} maxBarSize={36} animationDuration={800} isAnimationActive={!reducedMotion} />)}</BarChart></ResponsiveContainer></div>
+            <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-muted-foreground">{fiscalCats.map((c, i) => <span key={c.id} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-sm ${PALETTE[i % PALETTE.length].bar}`} />{c.name}</span>)}</div>
+          </> : <p className="py-16 text-center text-sm text-muted-foreground">Aucun revenu pour {year}</p>}
           <Tabs defaultValue="all" className="w-full">
-            <TabsList className="mb-4 flex-wrap h-auto">
-              <TabsTrigger value="all" className="gap-1.5"><Calculator className="w-3.5 h-3.5" /> Toutes activités</TabsTrigger>
-              {fiscalCats.map(c => (
-                <TabsTrigger key={c.id} value={c.id} className="gap-1.5"><Tag className="w-3.5 h-3.5" /> {c.name}</TabsTrigger>
-              ))}
-            </TabsList>
-            <TabsContent value="all">
-              {monthsAccordion()}
-              <div className="mt-3 text-right text-sm font-semibold text-foreground">Total {year} : {fmt(caAnnuel)}</div>
-            </TabsContent>
-            {fiscalCats.map(c => (
-              <TabsContent key={c.id} value={c.id}>
-                {monthsAccordion(c.name)}
-                <div className="mt-3 text-right text-sm font-semibold text-foreground">Total {c.name} : {fmt(catTotal(c.name))}</div>
-              </TabsContent>
-            ))}
+            <TabsList className="mb-4 flex h-auto flex-wrap justify-start gap-1 rounded-none bg-transparent p-0"><TabsTrigger value="all" className="rounded-md border border-border px-3 py-2 text-xs data-[state=active]:bg-foreground data-[state=active]:text-background">Toutes activités</TabsTrigger>{fiscalCats.map(c => <TabsTrigger key={c.id} value={c.id} className="max-w-full whitespace-normal rounded-md border border-border px-3 py-2 text-xs data-[state=active]:bg-foreground data-[state=active]:text-background">{c.name}</TabsTrigger>)}</TabsList>
+            <TabsContent value="all" className="-mx-3 sm:-mx-5">{monthsAccordion()}<div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-5 py-4"><span className="text-xs font-bold uppercase text-muted-foreground">Total {year}</span><span className="font-display text-lg font-bold tabular-nums text-primary">{fmt(caAnnuel)}</span></div></TabsContent>
+            {fiscalCats.map(c => <TabsContent key={c.id} value={c.id} className="-mx-3 sm:-mx-5">{monthsAccordion(c.name)}<div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-5 py-4"><span className="text-xs font-bold text-muted-foreground">Total {c.name}</span><span className="font-display text-lg font-bold tabular-nums text-primary">{fmt(catTotal(c.name))}</span></div></TabsContent>)}
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {/* Trimestres */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {QUARTERS.map((q, i) => {
+      <section className="dashboard-enter space-y-3" aria-label="Paiements trimestriels">
+        <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-display text-lg font-bold">Paiements trimestriels</h2><span className="text-xs text-muted-foreground">Exercice {year}</span></div>
+        <div className="border-y border-border py-3"><div className="mb-2 flex items-center justify-between text-xs"><span className="font-medium">Progression des paiements</span><span className="font-bold text-primary">{progressPaiement.toFixed(0)} %</span></div><Progress value={progressPaiement} className="h-2" /><div className="mt-2 flex flex-wrap justify-between gap-1 text-xs text-muted-foreground"><span>Payé : {fmt(totalPaye)}</span><span>Total dû : {fmt(impotAnnuel)}</span></div></div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{QUARTERS.map((q, i) => {
           const reste = Math.max(0, quarterImpot[i] - quarterPaid[i]);
           const paid = quarterImpot[i] > 0 && quarterPaid[i] >= quarterImpot[i];
           const progress = quarterImpot[i] > 0 ? Math.min(100, (quarterPaid[i] / quarterImpot[i]) * 100) : 0;
           const isLocked = !!locks[`locked_t${i + 1}`];
-          return (
-            <Card key={q.label} className={`relative overflow-hidden border bg-gradient-to-br ${q.color}`}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-bold">{q.label}</span>
-                    <span className="text-xs text-muted-foreground">{q.period}</span>
-                  </div>
-                  <Badge variant={paid ? 'default' : 'secondary'} className={`gap-1 ${paid ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}>
-                    {isLocked ? <Lock className="w-3 h-3" /> : paid ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                    {isLocked ? 'Validé' : paid ? 'Soldé' : 'En cours'}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-lg bg-card/80">
-                    <p className="text-xs text-muted-foreground">CA</p>
-                    <p className="text-lg font-bold text-foreground">{fmt(quarterCA[i])}</p>
-                    <div className="flex gap-2 mt-1 flex-wrap">
-                      {fiscalCats.map((c, ci) => {
-                        const v = q.months.reduce((s, m) => s + monthCatTotal(m, c.name), 0);
-                        if (v <= 0) return null;
-                        return <span key={c.id} className={`text-[10px] ${PALETTE[ci % PALETTE.length].text}`}>{c.name}: {fmtShort(v)}</span>;
-                      })}
-                    </div>
-                  </div>
-                  <div className="p-3 rounded-lg bg-card/80">
-                    <p className="text-xs text-muted-foreground">Impôt dû</p>
-                    <p className="text-lg font-bold text-foreground">{fmt(quarterImpot[i])}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">Montant payé</label>
-                  <Input type="number" min={0} value={payments[q.payKey] || ''} placeholder="0"
-                    onChange={e => setPayments(prev => ({ ...prev, [q.payKey]: Math.max(0, Number(e.target.value) || 0) }))}
-                    onBlur={() => savePayment(q.payKey, payments[q.payKey] || 0)}
-                    className="mt-1" disabled={isLocked} />
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-muted-foreground">Progression</span>
-                    <span className="font-medium">{progress.toFixed(0)}%</span>
-                  </div>
-                  <Progress value={progress} className="h-2" />
-                </div>
-
-                <div className="flex justify-between items-center pt-2 border-t border-border/50">
-                  <span className="text-sm text-muted-foreground">Reste à payer</span>
-                  <span className={`text-lg font-bold ${reste > 0 ? 'text-destructive' : 'text-emerald-600'}`}>{fmt(reste)}</span>
-                </div>
-
-                {!isLocked && quarterCA[i] > 0 && (
-                  <Button variant={paid ? 'default' : 'outline'} size="sm" className="w-full gap-2 mt-2"
-                    onClick={() => {
-                      if (window.confirm(`Êtes-vous sûr de vouloir valider le ${q.label} ? Les données ne seront plus modifiables.`)) lockQuarter(i);
-                    }}>
-                    <Lock className="w-3.5 h-3.5" /> Valider & Verrouiller {q.label}
-                  </Button>
-                )}
-                {isLocked && (
-                  <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                    <Lock className="w-4 h-4 text-emerald-600" />
-                    <span className="text-xs font-medium text-emerald-700">Trimestre validé — Lecture seule</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Projections */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Projections {year}</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-3 rounded-lg bg-muted/40">
-            <p className="text-xs text-muted-foreground">Moyenne mensuelle ({monthsFilled} mois)</p>
-            <p className="text-lg font-bold text-foreground">{fmt(moyenne)}</p>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/40">
-            <p className="text-xs text-muted-foreground">CA projeté (12 mois)</p>
-            <p className="text-lg font-bold text-foreground">{fmt(caProjecte)}</p>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/40">
-            <p className="text-xs text-muted-foreground">Impôt projeté</p>
-            <p className="text-lg font-bold text-foreground">{fmt(impotProjecte)}</p>
-          </div>
-        </CardContent>
-      </Card>
-
+          return <article key={q.label} className="min-w-0 rounded-md border border-border bg-card p-4">
+            <div className="mb-4 flex items-start justify-between gap-2"><div><h3 className="font-display text-xl font-bold">{q.label}</h3><p className="text-[11px] text-muted-foreground">{q.period}</p></div><Badge variant="secondary" className={`gap-1 rounded-sm text-[10px] ${paid || isLocked ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>{isLocked ? <Lock className="h-3 w-3" /> : paid ? <CheckCircle2 className="h-3 w-3" /> : null}{isLocked ? 'Validé' : paid ? 'Soldé' : 'En cours'}</Badge></div>
+            <div className="space-y-2 text-xs"><div className="flex flex-wrap justify-between gap-1"><span className="text-muted-foreground">CA</span><span className="font-semibold tabular-nums">{fmt(quarterCA[i])}</span></div><div className="flex flex-wrap justify-between gap-1"><span className="text-muted-foreground">Impôt dû</span><span className="font-semibold tabular-nums">{fmt(quarterImpot[i])}</span></div></div>
+            <div className="mt-4"><Label htmlFor={q.payKey} className="text-xs text-muted-foreground">Montant payé · FCFA</Label><Input id={q.payKey} type="number" min={0} value={payments[q.payKey] || ''} placeholder="0" onChange={e => setPayments(prev => ({ ...prev, [q.payKey]: Math.max(0, Number(e.target.value) || 0) }))} onBlur={() => savePayment(q.payKey, payments[q.payKey] || 0)} className="mt-1 h-9 rounded-md tabular-nums" disabled={isLocked} /></div>
+            <div className="mt-3"><div className="mb-1 flex justify-between text-[11px] text-muted-foreground"><span>Progression</span><span>{progress.toFixed(0)} %</span></div><Progress value={progress} className="h-1.5" /></div>
+            <div className="mt-4 flex flex-wrap justify-between gap-1 border-t border-border pt-3 text-xs"><span className="text-muted-foreground">Reste à payer</span><span className={`font-bold tabular-nums ${reste > 0 ? 'text-destructive' : 'text-success'}`}>{fmt(reste)}</span></div>
+            {!isLocked && quarterCA[i] > 0 && <Button variant={paid ? 'default' : 'outline'} size="sm" className="mt-3 h-auto min-h-9 w-full gap-1 rounded-md px-2 py-2 text-[11px] whitespace-normal" onClick={() => { if (window.confirm(`Êtes-vous sûr de vouloir valider le ${q.label} ? Les données ne seront plus modifiables.`)) lockQuarter(i); }}><Lock className="h-3 w-3 shrink-0" />Valider & Verrouiller {q.label}</Button>}
+            {isLocked && <p className="mt-3 flex items-center gap-1 text-[11px] text-success"><Lock className="h-3 w-3" />Trimestre validé — Lecture seule</p>}
+          </article>;
+        })}</div>
+      </section>
+      <section className="border-t border-border pt-4"><h2 className="mb-3 font-display text-lg font-bold">Projections {year}</h2><div className="grid gap-4 sm:grid-cols-3">{[[`Moyenne mensuelle (${monthsFilled} mois)`, moyenne], ['CA projeté (12 mois)', caProjecte], ['Impôt projeté', impotProjecte]].map(([label, value]) => <div key={String(label)}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-display text-lg font-bold tabular-nums">{fmt(Number(value))}</p></div>)}</div></section>
     </div>
   );
 }
