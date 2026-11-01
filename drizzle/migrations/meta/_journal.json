@@ -8,6 +8,13 @@
       "when": 1791019342247,
       "tag": "0000_fiscal_tax_rate",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793567764208,
+      "tag": "0001_invoice_payments",
+      "breakpoints": true
     }
   ]
 }
