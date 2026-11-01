@@ -1,3 +1,4 @@
+import { mask } from '@/lib/privacy';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -19,8 +20,9 @@ import { useData } from '@/contexts/DataContext';
 import { supabase } from '@/integrations/supabase/client';
 import { dashboardMetrics } from '@/lib/dashboardMetrics';
 
-const money = (amount: number) => `${Math.round(amount).toLocaleString('fr-FR')} FCFA`;
-const shortMoney = (amount: number) => amount >= 1_000_000 ? `${(amount / 1_000_000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} M` : amount >= 1_000 ? `${Math.round(amount / 1_000)} k` : String(Math.round(amount));
+const money = (amount: number) => mask(`${Math.round(amount).toLocaleString('fr-FR')} FCFA`);
+const shortMoney = (amount: number) => mask(_shortMoney(amount));
+const _shortMoney = (amount: number) => amount >= 1_000_000 ? `${(amount / 1_000_000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} M` : amount >= 1_000 ? `${Math.round(amount / 1_000)} k` : String(Math.round(amount));
 const months = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 const chartColors = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--warning))', 'hsl(var(--info))', 'hsl(var(--destructive))', 'hsl(var(--foreground))'];
 const tooltipStyle = { backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, color: 'hsl(var(--foreground))', boxShadow: '0 8px 24px hsl(var(--foreground) / 0.08)' };

@@ -1,3 +1,4 @@
+import { mask } from '@/lib/privacy';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,7 +35,9 @@ import {
   Settings2,
   BellRing,
   Copy,
+  Wallet,
 } from 'lucide-react';
+import { useData } from '@/contexts/DataContext';
 import {
   DEFAULT_INVOICE_SETTINGS,
   InvoiceSettings,
@@ -64,6 +67,15 @@ type Invoice = {
   sender_override?: Partial<InvoiceSettings> | null;
 };
 
+type InvoicePayment = {
+  id: string;
+  invoice_id: string;
+  amount: number;
+  date: string;
+  note: string;
+  transaction_id: string | null;
+};
+
 type InvoiceItem = {
   id?: string;
   description: string;
@@ -75,16 +87,22 @@ type InvoiceItem = {
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   brouillon: { label: 'Brouillon', color: 'bg-muted text-muted-foreground' },
   'envoyé': { label: 'Envoyé', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
+  partiel: { label: 'Partiel', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
   'payé': { label: 'Payé', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
   'annulé': { label: 'Annulé', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
 };
 
-const fmt = (n: number) =>
+const fmt = (n: number) => mask(_fmt(n));
+const _fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'decimal', minimumFractionDigits: 0 }).format(n) + ' XOF';
 
 export default function Facturation() {
   const { userId } = useAuth();
   const { toast } = useToast();
+  const { refresh: refreshData } = useData();
+  const [payments, setPayments] = useState<InvoicePayment[]>([]);
+  const [payInvoice, setPayInvoice] = useState<Invoice | null>(null);
+  const [payForm, setPayForm] = useState({ amount: '', date: new Date().toISOString().slice(0, 10), note: '' });
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -134,6 +152,8 @@ export default function Facturation() {
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
     if (!error && data) setInvoices(data as Invoice[]);
+    const { data: pays } = await supabase.from('invoice_payments').select('*').order('date', { ascending: true });
+    setPayments((pays || []).map((p) => ({ ...p, amount: Number(p.amount) })) as InvoicePayment[]);
     setLoading(false);
   };
 
@@ -307,6 +327,59 @@ export default function Facturation() {
     toast({ title: 'Statut mis à jour' });
   };
 
+  const paymentsOf = (inv: Invoice) => payments.filter((p) => p.invoice_id === inv.id);
+  const paidOf = (inv: Invoice) => {
+    const list = paymentsOf(inv);
+    if (list.length === 0 && inv.status === 'payé') return Number(inv.total);
+    return list.reduce((s, p) => s + p.amount, 0);
+  };
+  const remainingOf = (inv: Invoice) => Math.max(0, Number(inv.total) - paidOf(inv));
+
+  const syncStatus = async (inv: Invoice, paid: number) => {
+    const status = paid >= Number(inv.total) ? 'payé' : paid > 0 ? 'partiel' : 'envoyé';
+    if (status !== inv.status) await supabase.from('invoices').update({ status }).eq('id', inv.id);
+    return status;
+  };
+
+  const openPayment = (inv: Invoice) => {
+    setPayForm({ amount: String(remainingOf(inv)), date: new Date().toISOString().slice(0, 10), note: '' });
+    setPayInvoice(inv);
+  };
+
+  const addInvoicePayment = async () => {
+    if (!payInvoice || !userId) return;
+    const amount = Number(payForm.amount);
+    const remaining = remainingOf(payInvoice);
+    if (!amount || amount <= 0) return toast({ title: 'Montant invalide', variant: 'destructive' });
+    if (amount > remaining) return toast({ title: 'Montant supérieur au reliquat', description: `Reste à payer : ${fmt(remaining)}`, variant: 'destructive' });
+    const { data: tx } = await supabase.from('transactions').insert({
+      user_id: userId, type: 'revenu', category: 'Paiement client', amount, date: payForm.date,
+      description: `Paiement de ${payInvoice.client_name} — Facture ${payInvoice.invoice_number}${payForm.note ? ` (${payForm.note})` : ''}`,
+    }).select().single();
+    const { data, error } = await supabase.from('invoice_payments').insert({
+      invoice_id: payInvoice.id, user_id: userId, amount, date: payForm.date, note: payForm.note, transaction_id: tx?.id ?? null,
+    }).select().single();
+    if (error || !data) return toast({ title: 'Erreur', description: error?.message, variant: 'destructive' });
+    const newPaid = paymentsOf(payInvoice).reduce((s, p) => s + p.amount, 0) + amount;
+    const status = await syncStatus(payInvoice, newPaid);
+    setPayInvoice({ ...payInvoice, status });
+    toast({ title: 'Tranche enregistrée', description: `Reliquat : ${fmt(Math.max(0, Number(payInvoice.total) - newPaid))}` });
+    setPayForm((f) => ({ ...f, amount: String(Math.max(0, Number(payInvoice.total) - newPaid)), note: '' }));
+    await fetchInvoices();
+    refreshData();
+  };
+
+  const deleteInvoicePayment = async (inv: Invoice, pay: InvoicePayment) => {
+    await supabase.from('invoice_payments').delete().eq('id', pay.id);
+    if (pay.transaction_id) await supabase.from('transactions').delete().eq('id', pay.transaction_id);
+    const newPaid = paymentsOf(inv).filter((p) => p.id !== pay.id).reduce((s, p) => s + p.amount, 0);
+    const status = await syncStatus(inv, newPaid);
+    setPayInvoice({ ...inv, status });
+    await fetchInvoices();
+    refreshData();
+    toast({ title: 'Tranche supprimée' });
+  };
+
   const deleteInvoice = async (id: string) => {
     await supabase.from('invoices').delete().eq('id', id);
     fetchInvoices();
@@ -346,8 +419,8 @@ export default function Facturation() {
   const stats = {
     totalFactures: invoices.filter((i) => i.type === 'facture').length,
     totalDevis: invoices.filter((i) => i.type === 'devis').length,
-    enAttente: invoices.filter((i) => i.status === 'envoyé').reduce((s, i) => s + Number(i.total), 0),
-    totalPaye: invoices.filter((i) => i.status === 'payé').reduce((s, i) => s + Number(i.total), 0),
+    enAttente: invoices.filter((i) => i.status === 'envoyé' || i.status === 'partiel').reduce((s, i) => s + remainingOf(i), 0),
+    totalPaye: invoices.filter((i) => i.type === 'facture' && i.status !== 'annulé').reduce((s, i) => s + paidOf(i), 0),
   };
 
   return (
@@ -387,7 +460,7 @@ export default function Facturation() {
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">En attente</p>
+            <p className="text-sm text-muted-foreground">Reste à encaisser</p>
             <p className="text-2xl font-bold text-amber-600">{fmt(stats.enAttente)}</p>
           </CardContent>
         </Card>
@@ -412,7 +485,7 @@ export default function Facturation() {
           </Button>
         ))}
         <span className="w-px bg-border mx-1" />
-        {(['all', 'brouillon', 'envoyé', 'payé', 'annulé'] as const).map((s) => (
+        {(['all', 'brouillon', 'envoyé', 'partiel', 'payé', 'annulé'] as const).map((s) => (
           <Button
             key={s}
             variant={filterStatus === s ? 'default' : 'outline'}
@@ -443,6 +516,7 @@ export default function Facturation() {
                   <TableHead>Client</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Payé / Reliquat</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -461,6 +535,17 @@ export default function Facturation() {
                       <TableCell className="font-medium">{inv.client_name}</TableCell>
                       <TableCell className="text-muted-foreground">{inv.issue_date}</TableCell>
                       <TableCell className="text-right font-semibold">{fmt(Number(inv.total))}</TableCell>
+                      <TableCell className="text-right text-sm">
+                        {inv.type === 'facture' && inv.status !== 'brouillon' && inv.status !== 'annulé' ? (
+                          <div className="space-y-1">
+                            <div className="text-green-600 font-medium">{fmt(paidOf(inv))}</div>
+                            <div className={remainingOf(inv) > 0 ? 'text-amber-600' : 'text-muted-foreground'}>Reste {fmt(remainingOf(inv))}</div>
+                            <div className="h-1.5 w-24 ml-auto rounded-full bg-muted overflow-hidden">
+                              <div className="h-full bg-green-600" style={{ width: `${Number(inv.total) > 0 ? Math.min(100, (paidOf(inv) / Number(inv.total)) * 100) : 0}%` }} />
+                            </div>
+                          </div>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
                       <TableCell>
                         <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${st.color}`}>
                           {st.label}
@@ -481,12 +566,12 @@ export default function Facturation() {
                               <Send className="w-4 h-4" />
                             </Button>
                           )}
-                          {inv.status === 'envoyé' && (
-                            <Button variant="ghost" size="icon" onClick={() => updateStatus(inv, 'payé')} title="Marquer payé">
-                              <CheckCircle className="w-4 h-4 text-green-600" />
+                          {inv.type === 'facture' && ['envoyé', 'partiel', 'payé'].includes(inv.status) && (
+                            <Button variant="ghost" size="icon" onClick={() => openPayment(inv)} title="Paiements / tranches">
+                              <Wallet className="w-4 h-4 text-green-600" />
                             </Button>
                           )}
-                          {inv.status === 'payé' && (
+                          {inv.status === 'payé' && paymentsOf(inv).length === 0 && (
                             <Button variant="ghost" size="icon" onClick={() => updateStatus(inv, 'envoyé')} title="Remettre en attente de paiement">
                               <XCircle className="w-4 h-4 text-amber-600" />
                             </Button>
@@ -909,6 +994,66 @@ export default function Facturation() {
         </DialogContent>
       </Dialog>
 
+      {/* Payments Dialog */}
+      <Dialog open={!!payInvoice} onOpenChange={(open) => !open && setPayInvoice(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Paiements — {payInvoice?.invoice_number}</DialogTitle>
+          </DialogHeader>
+          {payInvoice && (() => {
+            const paid = paidOf(payInvoice);
+            const total = Number(payInvoice.total);
+            const rest = remainingOf(payInvoice);
+            const list = paymentsOf(payInvoice);
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                  <div className="rounded-md bg-muted p-2"><p className="text-muted-foreground text-xs">Total</p><p className="font-semibold">{fmt(total)}</p></div>
+                  <div className="rounded-md bg-muted p-2"><p className="text-muted-foreground text-xs">Payé</p><p className="font-semibold text-green-600">{fmt(paid)}</p></div>
+                  <div className="rounded-md bg-muted p-2"><p className="text-muted-foreground text-xs">Reliquat</p><p className="font-semibold text-amber-600">{fmt(rest)}</p></div>
+                </div>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full bg-green-600 transition-all" style={{ width: `${total > 0 ? Math.min(100, (paid / total) * 100) : 0}%` }} />
+                </div>
+                {list.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Tranches reçues</p>
+                    {list.map((p, i) => (
+                      <div key={p.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm">
+                        <div>
+                          <span className="font-medium">Tranche {i + 1} · {fmt(p.amount)}</span>
+                          <span className="text-muted-foreground ml-2">{p.date}{p.note ? ` — ${p.note}` : ''}</span>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => deleteInvoicePayment(payInvoice, p)} title="Supprimer la tranche">
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {rest > 0 ? (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <p className="text-sm font-medium">Enregistrer une tranche</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="number" min={0} placeholder="Montant" value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} />
+                      <Input type="date" value={payForm.date} onChange={(e) => setPayForm({ ...payForm, date: e.target.value })} />
+                    </div>
+                    <Input placeholder="Note (ex : 1ère tranche, Orange Money…)" value={payForm.note} onChange={(e) => setPayForm({ ...payForm, note: e.target.value })} />
+                    <Button className="w-full gap-2" onClick={addInvoicePayment}><CheckCircle className="w-4 h-4" /> Marquer cette tranche payée</Button>
+                    <p className="text-xs text-muted-foreground">Chaque tranche est ajoutée automatiquement à vos revenus (Transactions, tableau de bord, fiscalité).</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-green-600 font-medium text-center">Facture entièrement payée ✓</p>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayInvoice(null)}>Fermer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Reminder Dialog */}
       <Dialog open={!!reminderInvoice} onOpenChange={(open) => !open && setReminderInvoice(null)}>
         <DialogContent className="max-w-lg">
@@ -923,7 +1068,7 @@ export default function Facturation() {
               <Textarea
                 id="reminder-text"
                 rows={8}
-                defaultValue={`Bonjour ${reminderInvoice.client_name},\n\nJe me permets de vous relancer concernant la ${reminderInvoice.type} ${reminderInvoice.invoice_number} d'un montant de ${fmt(Number(reminderInvoice.total))}${reminderInvoice.due_date ? `, dont l'échéance était le ${reminderInvoice.due_date}` : ''}.\n\nMerci de bien vouloir procéder au règlement ou de me tenir informé.\n\nCordialement`}
+                defaultValue={`Bonjour ${reminderInvoice.client_name},\n\nJe me permets de vous relancer concernant la ${reminderInvoice.type} ${reminderInvoice.invoice_number} d'un montant de ${_fmt(Number(reminderInvoice.total))}${paidOf(reminderInvoice) > 0 ? ` (déjà réglé : ${_fmt(paidOf(reminderInvoice))}, reste à payer : ${_fmt(remainingOf(reminderInvoice))})` : ''}${reminderInvoice.due_date ? `, dont l'échéance était le ${reminderInvoice.due_date}` : ''}.\n\nMerci de bien vouloir procéder au règlement ou de me tenir informé.\n\nCordialement`}
               />
               <div className="flex flex-wrap gap-2">
                 <Button

@@ -1,3 +1,4 @@
+import { mask } from '@/lib/privacy';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,7 +15,7 @@ interface PlannedExpense {
   createdAt: string;
 }
 
-const formatMoney = (n: number) => n.toLocaleString('fr-FR') + ' FCFA';
+const formatMoney = (n: number) => mask(n.toLocaleString('fr-FR') + ' FCFA');
 
 const PlannedExpenses = () => {
   const { userId } = useAuth();
