@@ -1,9 +1,10 @@
+import { mask } from '@/lib/privacy';
 import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Transaction, TransactionType } from '@/lib/types';
 
-const formatMoney = (n: number) => n.toLocaleString('fr-FR') + ' FCFA';
+const formatMoney = (n: number) => mask(n.toLocaleString('fr-FR') + ' FCFA');
 
 const Transactions = () => {
   const { data, addTransaction, updateTransaction, deleteTransaction } = useData();

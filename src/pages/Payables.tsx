@@ -1,3 +1,4 @@
+import { mask } from '@/lib/privacy';
 import { useState, useMemo } from 'react';
 import { useData } from '@/contexts/DataContext';
 import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, DollarSign, ChevronDown, ChevronUp, Users, TrendingUp, CheckCircle2, AlertCircle, X, Check } from 'lucide-react';
@@ -14,7 +15,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const formatMoney = (n: number) => n.toLocaleString('fr-FR') + ' FCFA';
+const formatMoney = (n: number) => mask(n.toLocaleString('fr-FR') + ' FCFA');
 
 const CHART_COLORS = ['hsl(220, 90%, 56%)', 'hsl(220, 75%, 68%)', 'hsl(220, 60%, 78%)', 'hsl(210, 100%, 56%)', 'hsl(210, 80%, 65%)', 'hsl(200, 70%, 55%)', 'hsl(195, 60%, 50%)', 'hsl(190, 55%, 45%)'];
 

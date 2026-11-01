@@ -1,3 +1,4 @@
+import { mask } from '@/lib/privacy';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -79,7 +80,8 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   'annulé': { label: 'Annulé', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
 };
 
-const fmt = (n: number) =>
+const fmt = (n: number) => mask(_fmt(n));
+const _fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'decimal', minimumFractionDigits: 0 }).format(n) + ' XOF';
 
 export default function Facturation() {
