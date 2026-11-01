@@ -5,6 +5,8 @@ import {
   ClipboardList,
   CreditCard,
   DollarSign,
+  Eye,
+  EyeOff,
   Download,
   HardDrive,
   FileText,
@@ -17,7 +19,8 @@ import {
   TrendingUp,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { isAmountsHidden, setAmountsHidden, subscribePrivacy } from '@/lib/privacy';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 const navItems = [
@@ -38,6 +41,18 @@ export function Layout() {
   const { exportData } = useData();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(isAmountsHidden());
+  useEffect(() => { const u = subscribePrivacy(() => setHidden(isAmountsHidden())); return () => { u(); }; }, []);
+  const toggleBtn = (
+    <button
+      onClick={() => setAmountsHidden(!hidden)}
+      className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition"
+      aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'}
+      title={hidden ? 'Afficher les montants' : 'Masquer les montants'}
+    >
+      {hidden ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+    </button>
+  );
 
   const handleExport = () => {
     const jsonStr = exportData();
@@ -57,6 +72,7 @@ export function Layout() {
           <DollarSign className="w-5 h-5 text-primary-foreground" />
         </div>
         <span className="font-display text-xl font-bold text-foreground">Fintrack</span>
+        <div className="ml-auto hidden lg:block">{toggleBtn}</div>
         <button className="ml-auto lg:hidden text-muted-foreground" onClick={() => setOpen(false)} aria-label="Fermer le menu">
           <X className="w-5 h-5" />
         </button>
@@ -119,10 +135,11 @@ export function Layout() {
             <Menu className="w-6 h-6" />
           </button>
           <span className="text-lg font-bold font-display text-foreground">Fintrack</span>
+          <div className="ml-auto">{toggleBtn}</div>
         </header>
 
         <main className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-          <Outlet />
+          <Outlet key={hidden ? 'masked' : 'visible'} />
         </main>
       </div>
     </div>

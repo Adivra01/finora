@@ -63,7 +63,8 @@ const fmt = (n: number) => mask(_fmt(n));
 const _fmt = (n: number) =>
   new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', maximumFractionDigits: 0 }).format(n);
 
-const fmtShort = (n: number) => {
+const fmtShort = (n: number) => mask(_fmtShort(n));
+const _fmtShort = (n: number) => {
   if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
   return n.toString();
