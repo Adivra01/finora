@@ -1068,7 +1068,7 @@ export default function Facturation() {
               <Textarea
                 id="reminder-text"
                 rows={8}
-                defaultValue={`Bonjour ${reminderInvoice.client_name},\n\nJe me permets de vous relancer concernant la ${reminderInvoice.type} ${reminderInvoice.invoice_number} d'un montant de ${fmt(Number(reminderInvoice.total))}${paidOf(reminderInvoice) > 0 ? ` (déjà réglé : ${fmt(paidOf(reminderInvoice))}, reste à payer : ${fmt(remainingOf(reminderInvoice))})` : ''}${reminderInvoice.due_date ? `, dont l'échéance était le ${reminderInvoice.due_date}` : ''}.\n\nMerci de bien vouloir procéder au règlement ou de me tenir informé.\n\nCordialement`}
+                defaultValue={`Bonjour ${reminderInvoice.client_name},\n\nJe me permets de vous relancer concernant la ${reminderInvoice.type} ${reminderInvoice.invoice_number} d'un montant de ${_fmt(Number(reminderInvoice.total))}${paidOf(reminderInvoice) > 0 ? ` (déjà réglé : ${_fmt(paidOf(reminderInvoice))}, reste à payer : ${_fmt(remainingOf(reminderInvoice))})` : ''}${reminderInvoice.due_date ? `, dont l'échéance était le ${reminderInvoice.due_date}` : ''}.\n\nMerci de bien vouloir procéder au règlement ou de me tenir informé.\n\nCordialement`}
               />
               <div className="flex flex-wrap gap-2">
                 <Button
