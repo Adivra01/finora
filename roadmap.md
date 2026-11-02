@@ -4,3 +4,5 @@
 - [ ] Verify dashboard charts, animation, desktop and mobile presentation.
 - [ ] Apply the selected chart-led Fiscalité redesign without changing calculations.
 - [ ] Verify Fiscalité with retained transactions, filters, quarterly controls and PDF.
+- [ ] Apply the supplied invoice design while preserving dynamic amounts and payment calculations.
+- [ ] Verify short and multi-page invoice previews and exports without clipped content.
