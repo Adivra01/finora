@@ -1,2 +1,3 @@
 - Derive dashboard revenue, expenses, and estimated tax from retained transactions for the selected year; this keeps overview and fiscal calculations aligned without duplicating stored totals.
 - Keep Fiscalité presentation changes separate from its transaction-derived calculations and payment persistence; visual redesigns must not change financial results.
+- Render invoice previews and print exports through the same Paged.js HTML template with document-scoped design tokens, so A4 pagination, repeated headings and dynamic data stay consistent.
