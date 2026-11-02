@@ -68,7 +68,7 @@ export default function InvoicePreview({ settings, invoice, items, scale = 0.55 
         ref={frame}
         title="Prévisualisation facture"
         srcDoc={html}
-        sandbox="allow-scripts"
+        sandbox="allow-scripts allow-same-origin"
         style={{
           width: W,
           height: documentHeight,
