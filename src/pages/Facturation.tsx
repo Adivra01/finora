@@ -402,12 +402,14 @@ export default function Facturation() {
 
   const exportPDF = (inv: Invoice, invItems: InvoiceItem[]) => {
     const html = buildInvoiceHTML({ ...inv, paid_amount: paidOf(inv) }, invItems, effSettings(inv));
-    const w = window.open('', '_blank');
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    const w = window.open(url, '_blank');
     if (w) {
-      w.document.write(html);
-      w.document.close();
-      w.addEventListener('invoice-ready', () => w.print(), { once: true });
+      w.addEventListener('load', () => {
+        w.addEventListener('invoice-ready', () => w.print(), { once: true });
+      }, { once: true });
     }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
   };
 
   const filtered = invoices.filter((inv) => {
