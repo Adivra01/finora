@@ -1,6 +1,6 @@
 import { InvoiceSettings } from './invoiceSettings';
 import documentCSS from './invoiceDocument.css?raw';
-import pagedScript from 'pagedjs/dist/paged.polyfill.min.js?url';
+import pagedScript from '../../node_modules/pagedjs/dist/paged.polyfill.min.js?url';
 import mountain from '@/assets/invoice-mountain.asset.json';
 
 export type TemplateInvoice = {
@@ -36,10 +36,11 @@ export function buildInvoiceHTML(inv: TemplateInvoice, items: TemplateItem[], s:
   const sender = [s.senderAddress, s.senderPhone, s.senderEmail].filter(Boolean).map(v => `<p>${esc(v)}</p>`).join('');
   const paid = Number(inv.paid_amount || 0);
   const scriptURL = new URL(pagedScript, window.location.origin).href;
+  const mountainURL = new URL(mountain.url, window.location.origin).href;
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>${title} ${esc(inv.invoice_number)}</title>
 <style>${documentCSS}</style>
 <script>window.PagedConfig={auto:false};</script><script src="${esc(scriptURL)}"></script></head><body>
-<header class="banner"><div class="brand"><div class="brand-name">${esc(s.senderName)}</div><div class="brand-details">${sender}</div></div><img class="landscape" src="${esc(mountain.url)}" alt=""></header>
+<header class="banner"><div class="brand"><div class="brand-name">${esc(s.senderName)}</div><div class="brand-details">${sender}</div></div><img class="landscape" src="${esc(mountainURL)}" alt=""></header>
 <section class="document-heading"><div><h1>${title}</h1><span class="accent-line"></span></div><div class="metadata">
 <div class="meta-row"><span class="meta-label">N° ${title}</span><strong class="document-number">${esc(inv.invoice_number)}</strong></div>
 <div class="meta-row"><span class="meta-label">Date d'émission</span><strong>${esc(date(inv.issue_date))}</strong></div>
