@@ -401,13 +401,15 @@ export default function Facturation() {
   };
 
   const exportPDF = (inv: Invoice, invItems: InvoiceItem[]) => {
-    const html = buildInvoiceHTML(inv, invItems, effSettings(inv));
-    const w = window.open('', '_blank');
+    const html = buildInvoiceHTML({ ...inv, paid_amount: paidOf(inv) }, invItems, effSettings(inv));
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    const w = window.open(url, '_blank');
     if (w) {
-      w.document.write(html);
-      w.document.close();
-      setTimeout(() => w.print(), 800);
+      w.addEventListener('load', () => {
+        w.addEventListener('invoice-ready', () => w.print(), { once: true });
+      }, { once: true });
     }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
   };
 
   const filtered = invoices.filter((inv) => {
@@ -889,6 +891,8 @@ export default function Facturation() {
                       tax_rate: Number(viewingInvoice.tax_rate),
                       tax_amount: Number(viewingInvoice.tax_amount),
                       total: Number(viewingInvoice.total),
+                      status: viewingInvoice.status,
+                      paid_amount: paidOf(viewingInvoice),
                     }}
                     items={viewItems}
                     scale={0.6}

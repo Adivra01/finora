@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { InvoiceSettings } from '@/lib/invoiceSettings';
 import { buildInvoiceHTML, TemplateInvoice, TemplateItem } from '@/lib/invoiceTemplate';
 
@@ -31,31 +31,53 @@ type Props = {
 };
 
 export default function InvoicePreview({ settings, invoice, items, scale = 0.55 }: Props) {
+  const container = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(794 * scale);
+  const [documentHeight, setDocumentHeight] = useState(1123);
+  useEffect(() => {
+    const node = container.current;
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setAvailableWidth(entry.contentRect.width);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (event.source !== frame.current?.contentWindow || event.data?.type !== 'invoice-pages') return;
+      const height = Number(event.data.height);
+      if (Number.isFinite(height) && height > 0) setDocumentHeight(height);
+    };
+    window.addEventListener('message', receive);
+    return () => window.removeEventListener('message', receive);
+  }, []);
   const html = useMemo(
     () => buildInvoiceHTML(invoice ?? SAMPLE_INVOICE, items ?? SAMPLE_ITEMS, settings),
     [settings, invoice, items]
   );
 
   const W = 794;
-  const H = 1123;
+  const actualScale = Math.min(scale, availableWidth / W);
 
   return (
-    <div
-      className="rounded-lg border bg-muted/30 overflow-hidden mx-auto"
-      style={{ width: W * scale, height: H * scale }}
-    >
+    <div ref={container} className="w-full mx-auto" style={{ maxWidth: W * scale }}>
+    <div className="border bg-muted/30 overflow-hidden" style={{ width: W * actualScale, height: documentHeight * actualScale }}>
       <iframe
+        ref={frame}
         title="Prévisualisation facture"
         srcDoc={html}
-        sandbox="allow-same-origin"
+        sandbox="allow-scripts allow-same-origin"
         style={{
           width: W,
-          height: H,
+          height: documentHeight,
           border: 0,
-          transform: `scale(${scale})`,
+          transform: `scale(${actualScale})`,
           transformOrigin: 'top left',
         }}
       />
+    </div>
     </div>
   );
 }
