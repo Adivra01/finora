@@ -1,8 +1,8 @@
 - [x] Rebuild dashboard using retained transactions, annual fiscal rate and paid tax.
 - [x] Verify metrics with tests and the authenticated preview.
-- [ ] Apply the selected bright fintech dashboard redesign without changing calculations.
-- [ ] Verify dashboard charts, animation, desktop and mobile presentation.
-- [ ] Apply the selected chart-led Fiscalité redesign without changing calculations.
-- [ ] Verify Fiscalité with retained transactions, filters, quarterly controls and PDF.
-- [ ] Apply the supplied invoice design while preserving dynamic amounts and payment calculations.
-- [ ] Verify short and multi-page invoice previews and exports without clipped content.
+- [x] Apply the selected bright fintech dashboard redesign without changing calculations.
+- [x] Verify dashboard charts, animation, desktop and mobile presentation.
+- [x] Apply the selected chart-led Fiscalité redesign without changing calculations.
+- [x] Verify Fiscalité with retained transactions, filters, quarterly controls and PDF.
+- [x] Apply the supplied invoice design while preserving dynamic amounts and payment calculations.
+- [x] Verify short and multi-page invoice previews and exports without clipped content.
