@@ -405,9 +405,13 @@ export default function Facturation() {
     const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
     const w = window.open(url, '_blank');
     if (w) {
-      w.addEventListener('load', () => {
-        w.addEventListener('invoice-ready', () => w.print(), { once: true });
-      }, { once: true });
+      const printWhenReady = () => {
+        if ((w as Window & { invoiceReady?: boolean }).invoiceReady) w.print();
+        else w.addEventListener('invoice-ready', () => w.print(), { once: true });
+      };
+      w.addEventListener('load', printWhenReady, { once: true });
+    } else {
+      toast({ title: 'Autorisez les fenêtres pop-up pour exporter la facture', variant: 'destructive' });
     }
     setTimeout(() => URL.revokeObjectURL(url), 120000);
   };
