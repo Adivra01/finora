@@ -5,6 +5,9 @@ export function dashboardMetrics(transactions: Transaction[], payables: Payable[
   const revenue = yearly.filter(t => t.type === 'revenu').reduce((sum, t) => sum + t.amount, 0);
   const expenses = yearly.filter(t => t.type === 'depense').reduce((sum, t) => sum + t.amount, 0);
   const invested = investments.filter(i => i.date.startsWith(`${year}-`)).reduce((sum, i) => sum + i.amount, 0);
+  const returns = investments.filter(i => (i.returnDate || '').startsWith(`${year}-`)).reduce((sum, i) => sum + (i.returnAmount || 0), 0);
+  const returnsTotal = investments.reduce((sum, i) => sum + (i.returnAmount || 0), 0);
+  const investedWithReturn = investments.filter(i => (i.returnAmount || 0) > 0).reduce((sum, i) => sum + i.amount, 0);
   const tax = revenue * taxRate / 100;
   return {
     yearly,
@@ -12,7 +15,10 @@ export function dashboardMetrics(transactions: Transaction[], payables: Payable[
     expenses,
     invested,
     investedTotal: investments.reduce((sum, i) => sum + i.amount, 0),
-    cashFlow: revenue - expenses - invested,
+    returns,
+    returnsTotal,
+    roiPercent: investedWithReturn > 0 ? ((returnsTotal - investedWithReturn) / investedWithReturn) * 100 : 0,
+    cashFlow: revenue - expenses - invested + returns,
     tax,
     taxPaid,
     taxRemaining: Math.max(0, tax - taxPaid),

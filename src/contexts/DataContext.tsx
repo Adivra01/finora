@@ -83,6 +83,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setInvestments((invRes.data || []).map((i: any) => ({
       id: i.id, type: i.type, name: i.name, amount: Number(i.amount),
       date: i.date, description: i.description || '', createdAt: i.created_at,
+      returnAmount: Number(i.return_amount || 0), returnDate: i.return_date, returnNote: i.return_note || '',
     })));
 
     // If no categories exist, seed defaults
@@ -258,11 +259,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!userId) return;
     const { data, error } = await supabase.from('investments').insert({
       user_id: userId, type: i.type, name: i.name, amount: i.amount, date: i.date, description: i.description,
+      return_amount: i.returnAmount || 0, return_date: i.returnDate || null, return_note: i.returnNote || '',
     }).select().single();
     if (!error && data) {
       setInvestments(prev => [{
         id: data.id, type: data.type, name: data.name, amount: Number(data.amount),
         date: data.date, description: data.description || '', createdAt: data.created_at,
+        returnAmount: Number(data.return_amount || 0), returnDate: data.return_date, returnNote: data.return_note || '',
       }, ...prev]);
     }
   }, [userId]);
@@ -274,6 +277,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (i.amount !== undefined) updateData.amount = i.amount;
     if (i.date !== undefined) updateData.date = i.date;
     if (i.description !== undefined) updateData.description = i.description;
+    if (i.returnAmount !== undefined) updateData.return_amount = i.returnAmount;
+    if (i.returnDate !== undefined) updateData.return_date = i.returnDate || null;
+    if (i.returnNote !== undefined) updateData.return_note = i.returnNote;
     await supabase.from('investments').update(updateData).eq('id', id);
     setInvestments(prev => prev.map(inv => inv.id === id ? { ...inv, ...i } : inv));
   }, []);

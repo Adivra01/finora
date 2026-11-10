@@ -35,6 +35,9 @@ export interface Investment {
   date: string;
   description: string;
   createdAt: string;
+  returnAmount?: number;
+  returnDate?: string | null;
+  returnNote?: string;
 }
 
 export type CategoryGroup = 'depense' | 'revenu' | 'business' | 'fiscalite';
