@@ -90,7 +90,8 @@ export default function Dashboard() {
     { label: 'Chiffre d’affaires', value: metrics.revenue, icon: ArrowUpRight, tone: 'text-success bg-success/10', note: `${metrics.yearly.filter(t => t.type === 'revenu').length} encaissements` },
     { label: 'Dépenses', value: metrics.expenses, icon: ArrowDownRight, tone: 'text-destructive bg-destructive/10', note: `${metrics.yearly.filter(t => t.type === 'depense').length} sorties` },
     { label: 'Investissements', value: metrics.invested, icon: PiggyBank, tone: 'text-info bg-info/10', note: `Total investi : ${money(metrics.investedTotal)}` },
-    { label: 'Flux net', value: metrics.cashFlow, icon: Wallet, tone: 'text-primary bg-primary/10', note: 'Revenus − dépenses − investissements' },
+    { label: 'Flux net', value: metrics.cashFlow, icon: Wallet, tone: 'text-primary bg-primary/10', note: 'Revenus − dépenses − investissements + retours' },
+    { label: 'Retour sur investissement', value: metrics.returns, icon: TrendingUp, tone: 'text-success bg-success/10', note: `Rendement : ${metrics.roiPercent >= 0 ? '+' : ''}${metrics.roiPercent.toFixed(1)} %` },
     { label: 'Reste à encaisser', value: metrics.payableRemaining, icon: CreditCard, tone: 'text-warning bg-warning/10', note: 'Créances clients non encaissées' },
   ];
 
@@ -113,7 +114,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {stats.map((item, i) => (
           <article key={item.label} style={{ animationDelay: `${80 + i * 70}ms` }} className="dashboard-enter group min-w-0 rounded-sm border border-border bg-card p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg">
             <div className="mb-4 flex items-center justify-between gap-2">

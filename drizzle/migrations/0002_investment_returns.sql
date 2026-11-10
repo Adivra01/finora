@@ -1,0 +1,1 @@
+ALTER TABLE public.investments ADD COLUMN IF NOT EXISTS return_amount numeric NOT NULL DEFAULT 0, ADD COLUMN IF NOT EXISTS return_date text, ADD COLUMN IF NOT EXISTS return_note text NOT NULL DEFAULT '';

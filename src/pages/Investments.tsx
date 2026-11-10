@@ -13,6 +13,9 @@ const Investments = () => {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState('');
+  const [returnAmount, setReturnAmount] = useState('');
+  const [returnDate, setReturnDate] = useState('');
+  const [returnNote, setReturnNote] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newType, setNewType] = useState('');
   const [showTypeForm, setShowTypeForm] = useState(false);
@@ -20,7 +23,7 @@ const Investments = () => {
   const perPage = 10;
 
   const resetForm = () => {
-    setType(''); setName(''); setAmount(''); setDate(new Date().toISOString().slice(0, 10)); setDescription(''); setEditingId(null);
+    setType(''); setName(''); setAmount(''); setDate(new Date().toISOString().slice(0, 10)); setDescription(''); setReturnAmount(''); setReturnDate(''); setReturnNote(''); setEditingId(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -29,10 +32,12 @@ const Investments = () => {
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt <= 0) return;
 
+    const ret = parseFloat(returnAmount) || 0;
+    const payload = { type, name, amount: amt, date, description, returnAmount: ret, returnDate: ret > 0 ? (returnDate || new Date().toISOString().slice(0, 10)) : null, returnNote };
     if (editingId) {
-      updateInvestment(editingId, { type, name, amount: amt, date, description });
+      updateInvestment(editingId, payload);
     } else {
-      addInvestment({ type, name, amount: amt, date, description });
+      addInvestment(payload);
     }
     resetForm();
   };
@@ -46,6 +51,7 @@ const Investments = () => {
 
   const startEdit = (inv: Investment) => {
     setEditingId(inv.id); setType(inv.type); setName(inv.name); setAmount(inv.amount.toString()); setDate(inv.date); setDescription(inv.description);
+    setReturnAmount(inv.returnAmount ? String(inv.returnAmount) : ''); setReturnDate(inv.returnDate || ''); setReturnNote(inv.returnNote || '');
   };
 
   const sorted = [...data.investments].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -118,6 +124,22 @@ const Investments = () => {
             <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Description"
               className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
+          <div className="sm:col-span-2 lg:col-span-3 pt-2 border-t border-border">
+            <h4 className="text-xs font-semibold text-foreground">Retour sur investissement (optionnel)</h4>
+            <p className="text-xs text-muted-foreground">Montant total récupéré, date du retour et comment vous avez gagné.</p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Montant récupéré</label>
+            <input type="number" value={returnAmount} onChange={e => setReturnAmount(e.target.value)} placeholder="0" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Date du retour</label>
+            <input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs text-muted-foreground">Comment j'ai gagné</label>
+            <input type="text" value={returnNote} onChange={e => setReturnNote(e.target.value)} placeholder="Ex : revente du poisson" className="w-full h-10 px-3 rounded-lg bg-secondary border border-border text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          </div>
         </div>
         <div className="flex gap-2 mt-4">
           <button type="submit" className="flex items-center gap-2 h-10 px-5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition">
@@ -137,6 +159,7 @@ const Investments = () => {
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3">Nom</th>
                 <th className="text-left text-xs font-medium text-muted-foreground px-4 py-3">Description</th>
                 <th className="text-right text-xs font-medium text-muted-foreground px-4 py-3">Montant</th>
+                <th className="text-right text-xs font-medium text-muted-foreground px-4 py-3">Retour</th>
                 <th className="text-right text-xs font-medium text-muted-foreground px-4 py-3">Actions</th>
               </tr>
             </thead>
@@ -148,6 +171,13 @@ const Investments = () => {
                   <td className="px-4 py-3 text-sm text-foreground">{inv.name}</td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{inv.description || '—'}</td>
                   <td className="px-4 py-3 text-sm font-semibold text-right text-foreground">{formatMoney(inv.amount)}</td>
+                  <td className="px-4 py-3 text-right text-xs">{inv.returnAmount ? (() => {
+                    const gain = inv.returnAmount - inv.amount;
+                    const days = inv.returnDate ? Math.max(0, Math.round((new Date(inv.returnDate).getTime() - new Date(inv.date).getTime()) / 86400000)) : null;
+                    return <div><div className="font-semibold text-foreground">{formatMoney(inv.returnAmount)}</div>
+                      <div className={gain >= 0 ? 'text-success' : 'text-destructive'}>{gain >= 0 ? '+' : ''}{formatMoney(gain)} ({((gain / inv.amount) * 100).toFixed(1)} %)</div>
+                      <div className="text-muted-foreground">{days !== null ? `${days} jours` : ''}{inv.returnNote ? ` · ${inv.returnNote}` : ''}</div></div>;
+                  })() : <span className="text-muted-foreground">—</span>}</td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <button onClick={() => startEdit(inv)} className="p-1.5 rounded-lg hover:bg-secondary transition text-muted-foreground hover:text-foreground"><Pencil className="w-3.5 h-3.5" /></button>
@@ -156,7 +186,7 @@ const Investments = () => {
                   </td>
                 </tr>
               ))}
-              {paginated.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-muted-foreground text-sm">Aucun investissement</td></tr>}
+              {paginated.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">Aucun investissement</td></tr>}
             </tbody>
           </table>
         </div>
