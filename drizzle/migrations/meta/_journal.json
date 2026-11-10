@@ -15,6 +15,13 @@
       "when": 1793567764208,
       "tag": "0001_invoice_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794308149943,
+      "tag": "0002_investment_returns",
+      "breakpoints": true
     }
   ]
 }

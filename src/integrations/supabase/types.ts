@@ -321,6 +321,9 @@ export type Database = {
           description: string
           id: string
           name: string
+          return_amount: number
+          return_date: string | null
+          return_note: string
           type: string
           user_id: string
         }
@@ -331,6 +334,9 @@ export type Database = {
           description?: string
           id?: string
           name: string
+          return_amount?: number
+          return_date?: string | null
+          return_note?: string
           type: string
           user_id: string
         }
@@ -341,6 +347,9 @@ export type Database = {
           description?: string
           id?: string
           name?: string
+          return_amount?: number
+          return_date?: string | null
+          return_note?: string
           type?: string
           user_id?: string
         }
