@@ -42,3 +42,11 @@ describe('dashboard fiscal reconciliation', () => {
     expect(result.investedTotal).toBe(140000);
   });
 });
+describe('investment returns', () => {
+  it('adds returns received in the selected year back to net cash flow', () => {
+    const investments = [{ id: 'i1', type: 'Crypto', name: 'x', amount: 100000, date: '2026-05-01', description: '', createdAt: '', returnAmount: 130000, returnDate: '2026-08-01' }];
+    const r = dashboardMetrics([], [], 2026, 3, 0, investments);
+    expect(r.cashFlow).toBe(30000);
+    expect(r.roiPercent).toBe(30);
+  });
+});
