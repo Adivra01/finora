@@ -408,15 +408,28 @@ export default function Facturation() {
     frame.setAttribute('aria-hidden', 'true');
     frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
     document.body.appendChild(frame);
-    toast({ title: 'Préparation du PDF…', description: 'Choisissez « Enregistrer en PDF » dans la fenêtre d\'impression.' });
-    const onMsg = (e: MessageEvent) => {
+    toast({ title: 'Préparation du PDF…' });
+    const onMsg = async (e: MessageEvent) => {
       if (e.source !== frame.contentWindow || e.data?.type !== 'invoice-pages') return;
       window.removeEventListener('message', onMsg);
-      const w = frame.contentWindow!;
-      const prev = document.title;
-      document.title = `${inv.type === 'facture' ? 'Facture' : 'Devis'}-${inv.invoice_number}`;
-      setTimeout(() => { w.focus(); w.print(); document.title = prev; }, 150);
-      setTimeout(() => frame.remove(), 60000);
+      try {
+        const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas-pro'), import('jspdf')]);
+        const doc = frame.contentDocument!;
+        const pages = Array.from(doc.querySelectorAll<HTMLElement>('.pagedjs_page'));
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        for (let i = 0; i < pages.length; i++) {
+          const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#f9fbfd', windowWidth: 794 });
+          if (i > 0) pdf.addPage();
+          pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297);
+        }
+        pdf.save(`${inv.type === 'facture' ? 'Facture' : 'Devis'}-${inv.invoice_number}.pdf`);
+        toast({ title: 'PDF téléchargé' });
+      } catch (err) {
+        console.error(err);
+        toast({ title: 'Échec de la génération du PDF', variant: 'destructive' });
+      } finally {
+        frame.remove();
+      }
     };
     window.addEventListener('message', onMsg);
     frame.srcdoc = html;
