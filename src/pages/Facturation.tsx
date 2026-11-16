@@ -402,18 +402,24 @@ export default function Facturation() {
 
   const exportPDF = (inv: Invoice, invItems: InvoiceItem[]) => {
     const html = buildInvoiceHTML({ ...inv, paid_amount: paidOf(inv) }, invItems, effSettings(inv));
-    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
-    const w = window.open(url, '_blank');
-    if (w) {
-      const printWhenReady = () => {
-        if ((w as Window & { invoiceReady?: boolean }).invoiceReady) w.print();
-        else w.addEventListener('invoice-ready', () => w.print(), { once: true });
-      };
-      w.addEventListener('load', printWhenReady, { once: true });
-    } else {
-      toast({ title: 'Autorisez les fenêtres pop-up pour exporter la facture', variant: 'destructive' });
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 120000);
+    document.getElementById('invoice-print-frame')?.remove();
+    const frame = document.createElement('iframe');
+    frame.id = 'invoice-print-frame';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
+    document.body.appendChild(frame);
+    toast({ title: 'Préparation du PDF…', description: 'Choisissez « Enregistrer en PDF » dans la fenêtre d\'impression.' });
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== frame.contentWindow || e.data?.type !== 'invoice-pages') return;
+      window.removeEventListener('message', onMsg);
+      const w = frame.contentWindow!;
+      const prev = document.title;
+      document.title = `${inv.type === 'facture' ? 'Facture' : 'Devis'}-${inv.invoice_number}`;
+      setTimeout(() => { w.focus(); w.print(); document.title = prev; }, 150);
+      setTimeout(() => frame.remove(), 60000);
+    };
+    window.addEventListener('message', onMsg);
+    frame.srcdoc = html;
   };
 
   const filtered = invoices.filter((inv) => {
