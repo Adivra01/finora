@@ -415,6 +415,13 @@ export default function Facturation() {
       try {
         const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas-pro'), import('jspdf')]);
         const doc = frame.contentDocument!;
+        await Promise.all(Array.from(doc.images).map(async (img) => {
+          try {
+            const blob = await (await fetch(img.src)).blob();
+            const data = await new Promise<string>((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result as string); fr.readAsDataURL(blob); });
+            img.src = data; await img.decode();
+          } catch { /* keep original */ }
+        }));
         const pages = Array.from(doc.querySelectorAll<HTMLElement>('.pagedjs_page'));
         const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
         for (let i = 0; i < pages.length; i++) {
