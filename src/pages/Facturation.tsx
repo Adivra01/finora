@@ -400,15 +400,12 @@ export default function Facturation() {
     setViewDialogOpen(true);
   };
 
-  const exportPDF = (inv: Invoice, invItems: InvoiceItem[]) => {
+  const generatePDF = (inv: Invoice, invItems: InvoiceItem[]) => new Promise<Blob>((resolve, reject) => {
     const html = buildInvoiceHTML({ ...inv, paid_amount: paidOf(inv) }, invItems, effSettings(inv));
-    document.getElementById('invoice-print-frame')?.remove();
     const frame = document.createElement('iframe');
-    frame.id = 'invoice-print-frame';
     frame.setAttribute('aria-hidden', 'true');
     frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
     document.body.appendChild(frame);
-    toast({ title: 'Préparation du PDF…' });
     const onMsg = async (e: MessageEvent) => {
       if (e.source !== frame.contentWindow || e.data?.type !== 'invoice-pages') return;
       window.removeEventListener('message', onMsg);
@@ -429,18 +426,33 @@ export default function Facturation() {
           if (i > 0) pdf.addPage();
           pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297);
         }
-        pdf.save(`${inv.type === 'facture' ? 'Facture' : 'Devis'}-${inv.invoice_number}.pdf`);
-        toast({ title: 'PDF téléchargé' });
+        resolve(pdf.output('blob'));
       } catch (err) {
-        console.error(err);
-        toast({ title: 'Échec de la génération du PDF', variant: 'destructive' });
+        reject(err);
       } finally {
         frame.remove();
       }
     };
     window.addEventListener('message', onMsg);
     frame.srcdoc = html;
-  };
+  });
+
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState(false);
+  useEffect(() => {
+    if (!viewDialogOpen || !viewingInvoice) return;
+    let cancelled = false;
+    let url: string | null = null;
+    setPdfUrl(null); setPdfError(false);
+    const t = setTimeout(() => {
+      generatePDF(viewingInvoice, viewItems)
+        .then((blob) => { if (cancelled) return; url = URL.createObjectURL(blob); setPdfUrl(url); })
+        .catch((e) => { console.error(e); if (!cancelled) setPdfError(true); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); if (url) setTimeout(() => URL.revokeObjectURL(url!), 30000); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewDialogOpen, viewingInvoice, viewItems]);
+  const pdfName = viewingInvoice ? `${viewingInvoice.type === 'facture' ? 'Facture' : 'Devis'}-${viewingInvoice.invoice_number}.pdf` : 'facture.pdf';
 
   const filtered = invoices.filter((inv) => {
     if (filterType !== 'all' && inv.type !== filterType) return false;
@@ -845,14 +857,17 @@ export default function Facturation() {
               <DialogHeader>
                 <DialogTitle className="flex items-center justify-between">
                   <span>{viewingInvoice.type === 'facture' ? 'Facture' : 'Devis'} {viewingInvoice.invoice_number}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => exportPDF(viewingInvoice, viewItems)}
-                    className="gap-1"
-                  >
-                    <Download className="w-4 h-4" /> PDF
-                  </Button>
+                  {pdfUrl ? (
+                    <Button asChild size="sm" className="gap-1 mr-6">
+                      <a href={pdfUrl} download={pdfName}>
+                        <Download className="w-4 h-4" /> Télécharger le PDF
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button size="sm" disabled className="gap-1 mr-6">
+                      <Download className="w-4 h-4" /> {pdfError ? 'Erreur PDF' : 'Préparation…'}
+                    </Button>
+                  )}
                 </DialogTitle>
               </DialogHeader>
 
