@@ -352,12 +352,8 @@ export default function Facturation() {
     const remaining = remainingOf(payInvoice);
     if (!amount || amount <= 0) return toast({ title: 'Montant invalide', variant: 'destructive' });
     if (amount > remaining) return toast({ title: 'Montant supérieur au reliquat', description: `Reste à payer : ${fmt(remaining)}`, variant: 'destructive' });
-    const { data: tx } = await supabase.from('transactions').insert({
-      user_id: userId, type: 'revenu', category: 'Paiement client', amount, date: payForm.date,
-      description: `Paiement de ${payInvoice.client_name} — Facture ${payInvoice.invoice_number}${payForm.note ? ` (${payForm.note})` : ''}`,
-    }).select().single();
     const { data, error } = await supabase.from('invoice_payments').insert({
-      invoice_id: payInvoice.id, user_id: userId, amount, date: payForm.date, note: payForm.note, transaction_id: tx?.id ?? null,
+      invoice_id: payInvoice.id, user_id: userId, amount, date: payForm.date, note: payForm.note, transaction_id: null,
     }).select().single();
     if (error || !data) return toast({ title: 'Erreur', description: error?.message, variant: 'destructive' });
     const newPaid = paymentsOf(payInvoice).reduce((s, p) => s + p.amount, 0) + amount;
@@ -406,20 +402,29 @@ export default function Facturation() {
     frame.setAttribute('aria-hidden', 'true');
     frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
     document.body.appendChild(frame);
-    const onMsg = async (e: MessageEvent) => {
+    let started = false;
+    const fallback = setTimeout(() => run(), 12000);
+    const onMsg = (e: MessageEvent) => {
       if (e.source !== frame.contentWindow || e.data?.type !== 'invoice-pages') return;
+      run();
+    };
+    const run = async () => {
+      if (started) return; started = true;
+      clearTimeout(fallback);
       window.removeEventListener('message', onMsg);
       try {
         const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas-pro'), import('jspdf')]);
         const doc = frame.contentDocument!;
         await Promise.all(Array.from(doc.images).map(async (img) => {
           try {
-            const blob = await (await fetch(img.src)).blob();
+            const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 5000);
+            const blob = await (await fetch(img.src, { signal: ctrl.signal })).blob(); clearTimeout(to);
             const data = await new Promise<string>((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result as string); fr.readAsDataURL(blob); });
             img.src = data; await img.decode();
           } catch { /* keep original */ }
         }));
-        const pages = Array.from(doc.querySelectorAll<HTMLElement>('.pagedjs_page'));
+        let pages = Array.from(doc.querySelectorAll<HTMLElement>('.pagedjs_page'));
+        if (pages.length === 0) pages = [doc.body];
         const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
         for (let i = 0; i < pages.length; i++) {
           const canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#f9fbfd', windowWidth: 794 });

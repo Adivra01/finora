@@ -1,7 +1,7 @@
 import { mask } from '@/lib/privacy';
 import { useState } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronLeft, ChevronRight, Search, Download } from 'lucide-react';
 import type { Transaction, TransactionType } from '@/lib/types';
 
 const formatMoney = (n: number) => mask(n.toLocaleString('fr-FR') + ' FCFA');
@@ -16,6 +16,7 @@ const Transactions = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
+  const [query, setQuery] = useState('');
 
   const categories = data.categories.filter(c =>
     type === 'revenu' ? c.group === 'revenu' || c.group === 'fiscalite' : c.group === 'depense'
@@ -53,9 +54,19 @@ const Transactions = () => {
     setDescription(t.description);
   };
 
-  const sorted = [...data.transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const q = query.trim().toLowerCase();
+  const sorted = [...data.transactions].filter(t => !q || `${t.category} ${t.description}`.toLowerCase().includes(q)).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   const totalPages = Math.ceil(sorted.length / perPage);
   const paginated = sorted.slice((page - 1) * perPage, page * perPage);
+
+  const downloadCSV = () => {
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = [['Date', 'Type', 'Catégorie', 'Description', 'Montant'], ...sorted.map(t => [t.date, t.type === 'revenu' ? 'Revenu' : 'Dépense', t.category, t.description, String(t.amount)])];
+    const blob = new Blob(['\ufeff' + rows.map(r => r.map(esc).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `transactions${q ? '-' + q.replace(/[^a-z0-9]+/gi, '_') : ''}.csv`; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -121,6 +132,17 @@ const Transactions = () => {
       <div className="glass-card overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="text-sm font-semibold text-foreground">Historique ({sorted.length})</h3>
+          <div className="flex items-center gap-2 flex-1 justify-end mx-3">
+            <div className="relative w-full max-w-xs">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input value={query} onChange={e => { setQuery(e.target.value); setPage(1); }} placeholder="Mot clé (catégorie, description)"
+                className="w-full h-8 pl-8 pr-2 rounded-lg bg-secondary border border-border text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            </div>
+            <button onClick={downloadCSV} disabled={sorted.length === 0}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition disabled:opacity-40">
+              <Download className="w-3.5 h-3.5" /> Télécharger
+            </button>
+          </div>
           <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }}
             className="h-8 px-2 rounded-lg bg-secondary border border-border text-xs text-foreground">
             <option value={5}>5 / page</option>
