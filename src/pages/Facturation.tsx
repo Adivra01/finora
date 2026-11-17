@@ -400,10 +400,12 @@ export default function Facturation() {
     const html = buildInvoiceHTML({ ...inv, paid_amount: paidOf(inv) }, invItems, effSettings(inv));
     const frame = document.createElement('iframe');
     frame.setAttribute('aria-hidden', 'true');
-    frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;';
+    frame.style.cssText = 'position:fixed;left:0;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none;z-index:-1;';
     document.body.appendChild(frame);
     let started = false;
-    const fallback = setTimeout(() => run(), 12000);
+    const fallback = setTimeout(() => run(), 8000);
+    const hardStop = setTimeout(() => { if (!done) { done = true; frame.remove(); reject(new Error('PDF timeout')); } }, 40000);
+    let done = false;
     const onMsg = (e: MessageEvent) => {
       if (e.source !== frame.contentWindow || e.data?.type !== 'invoice-pages') return;
       run();
@@ -431,10 +433,11 @@ export default function Facturation() {
           if (i > 0) pdf.addPage();
           pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297);
         }
-        resolve(pdf.output('blob'));
+        if (!done) { done = true; resolve(pdf.output('blob')); }
       } catch (err) {
-        reject(err);
+        if (!done) { done = true; reject(err); }
       } finally {
+        clearTimeout(hardStop);
         frame.remove();
       }
     };
